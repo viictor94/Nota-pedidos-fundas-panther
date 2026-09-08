@@ -21,7 +21,7 @@ const ADMIN_EMAIL = "admin@panther.internal";
 async function obtenerCatalogo() {
   const { data, error } = await supabaseClient
     .from("productos")
-    .select("id, nombre, imagen_url, orden, en_promo, variantes(id, sku, modelo, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
+    .select("id, nombre, imagen_url, orden, en_promo, es_nuevo, variantes(id, sku, modelo, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
     .eq("activo", true)
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
@@ -49,7 +49,7 @@ async function obtenerCatalogo() {
 async function obtenerCatalogoCompleto() {
   const { data, error } = await supabaseClient
     .from("productos")
-    .select("id, nombre, imagen_url, activo, orden, en_promo, variantes(id, sku, modelo, descripcion_completa, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
+    .select("id, nombre, imagen_url, activo, orden, en_promo, es_nuevo, variantes(id, sku, modelo, descripcion_completa, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
 

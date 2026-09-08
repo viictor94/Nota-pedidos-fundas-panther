@@ -95,6 +95,7 @@ function wireEventosEstaticos() {
 
   document.getElementById("btn-delete-product").addEventListener("click", manejarClickEliminarProducto);
   document.getElementById("checkbox-en-promo").addEventListener("change", manejarCambioEnPromo);
+  document.getElementById("checkbox-es-nuevo").addEventListener("change", manejarCambioEsNuevo);
 }
 
 // ---------------------------------------------------------------------
@@ -372,7 +373,7 @@ function crearItemListaProducto(producto) {
   item.appendChild(img);
 
   const nombre = document.createElement("span");
-  nombre.textContent = (producto.en_promo ? "🔥 " : "") + producto.nombre;
+  nombre.textContent = (producto.en_promo ? "🔥 " : "") + (producto.es_nuevo ? "🆕 " : "") + producto.nombre;
   item.appendChild(nombre);
 
   item.addEventListener("click", function () {
@@ -395,6 +396,7 @@ function renderDetalleProducto(productoId) {
   document.getElementById("selected-product-img").src =
     producto.imagen_url || "assets/img/placeholder-producto.svg";
   document.getElementById("checkbox-en-promo").checked = Boolean(producto.en_promo);
+  document.getElementById("checkbox-es-nuevo").checked = Boolean(producto.es_nuevo);
 
   const cuerpoTabla = document.getElementById("variants-table-body");
   while (cuerpoTabla.firstChild) {
@@ -406,20 +408,29 @@ function renderDetalleProducto(productoId) {
   });
 }
 
-// Tilda/destilda el cartel de "Promoción" del producto seleccionado.
-async function manejarCambioEnPromo(evento) {
+// Tilda/destilda un cartel (Promoción o Nuevo Ingreso) del producto
+// seleccionado. "campo" es la columna a actualizar en Supabase.
+async function manejarCambioCartel(evento, campo, mensajeOn, mensajeOff) {
   if (!productoSeleccionadoId) return;
 
   const marcado = evento.target.checked;
   try {
-    await actualizarProducto(productoSeleccionadoId, { en_promo: marcado });
+    await actualizarProducto(productoSeleccionadoId, { [campo]: marcado });
     productosAdmin = await obtenerCatalogoCompleto();
     renderListaProductos(document.getElementById("search-product").value);
-    mostrarToast(marcado ? "Producto destacado como promoción." : "Se sacó de promoción.", "success");
+    mostrarToast(marcado ? mensajeOn : mensajeOff, "success");
   } catch (error) {
     evento.target.checked = !marcado;
-    mostrarToast("No se pudo actualizar la promoción.", "error");
+    mostrarToast("No se pudo actualizar el cartel.", "error");
   }
+}
+
+function manejarCambioEnPromo(evento) {
+  return manejarCambioCartel(evento, "en_promo", "Producto destacado como promoción.", "Se sacó de promoción.");
+}
+
+function manejarCambioEsNuevo(evento) {
+  return manejarCambioCartel(evento, "es_nuevo", "Producto marcado como nuevo ingreso.", "Se sacó de nuevo ingreso.");
 }
 
 function crearFilaTablaVariante(variante) {

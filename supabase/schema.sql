@@ -32,17 +32,19 @@ create table if not exists public.productos (
   imagen_url  text,
   activo      boolean not null default true,
   orden       integer not null default 0,
-  -- Cartel de "Promoción" que el admin tilda/destilda para resaltar
-  -- el producto en el catálogo del cliente y potenciar su venta.
+  -- Carteles que el admin tilda/destilda para resaltar el producto en
+  -- el catálogo del cliente y potenciar su venta.
   en_promo    boolean not null default false,
+  es_nuevo    boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
 
 -- Por si la tabla ya existía de antes (proyecto ya provisionado) sin
--- esta columna: se agrega sin romper nada, no hace falta correrla dos
--- veces (add column if not exists es seguro de re-ejecutar).
+-- estas columnas: se agregan sin romper nada, no hace falta correrlo
+-- dos veces (add column if not exists es seguro de re-ejecutar).
 alter table public.productos add column if not exists en_promo boolean not null default false;
+alter table public.productos add column if not exists es_nuevo boolean not null default false;
 
 create table if not exists public.variantes (
   id                   uuid primary key default gen_random_uuid(),

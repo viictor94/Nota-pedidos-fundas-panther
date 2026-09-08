@@ -164,6 +164,13 @@ function crearTarjetaProducto(producto) {
   const imagenWrap = document.createElement("div");
   imagenWrap.className = "product-card-image-wrap";
 
+  if (producto.es_nuevo) {
+    const cartelNuevo = document.createElement("span");
+    cartelNuevo.className = "nuevo-badge";
+    cartelNuevo.textContent = "🆕 NUEVO";
+    imagenWrap.appendChild(cartelNuevo);
+  }
+
   if (producto.en_promo) {
     const cartelPromo = document.createElement("span");
     cartelPromo.className = "promo-badge";
@@ -211,9 +218,8 @@ function crearTarjetaProducto(producto) {
 function abrirModalVariantes(producto) {
   productoEnModal = producto;
 
-  document.getElementById("modal-product-title").textContent = producto.en_promo
-    ? "🔥 " + producto.nombre
-    : producto.nombre;
+  const prefijo = (producto.en_promo ? "🔥 " : "") + (producto.es_nuevo ? "🆕 " : "");
+  document.getElementById("modal-product-title").textContent = prefijo + producto.nombre;
   const imagen = document.getElementById("modal-product-image");
   imagen.src = producto.imagen_url || "assets/img/placeholder-producto.svg";
   imagen.alt = producto.nombre;
