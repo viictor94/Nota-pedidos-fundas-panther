@@ -13,7 +13,7 @@
       
       <!-- Costado Izquierdo: Logo Panther Más Grande -->
       <div style="display: flex; align-items: center;">
-        <img src="assets/img/Logos Clasico - .png" alt="Panther Distribuciones" style="height: 78px; max-height: 85px; width: auto; object-fit: contain;">
+        <img id="header-logo" src="" alt="Panther Distribuciones" style="height: 78px; max-height: 85px; width: auto; object-fit: contain;">
       </div>
 
       <!-- Costado Derecho: Título, Fecha y Carrito -->
@@ -35,7 +35,7 @@
   <main class="container">
     
     <!-- Sección de Catálogo -->
-    <section id="catalog-section" class="catalog-section">
+    <section id="catalog-section" class="catalog-section active">
       <div id="catalog-grid" class="catalog-grid">
         <!-- Los productos se insertan aquí vía JS -->
       </div>
@@ -142,8 +142,13 @@
 
   <!-- Scripts -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="assets/js/logo.js"></script>
+  <script src="assets/js/supabase-client.js"></script>
   <script src="assets/js/data.js"></script>
+  <script src="assets/js/pdf-generator.js"></script>
+  <script src="assets/js/excel-generator.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>
