@@ -539,6 +539,18 @@ function mostrarAvisoStock(mensaje) {
 // Modal de éxito: compartir / descargar
 // ---------------------------------------------------------------------
 
+// Mensaje que se envía al vendedor, tanto adjunto al compartir nativo
+// como pre-cargado en el link de WhatsApp del fallback.
+function construirTextoWhatsapp(pedido) {
+  return (
+    "Hola! Armé mi pedido por la web de fundas. Te dejo mis datos: nombre: " +
+    pedido.clienteNombre +
+    ", teléfono: " +
+    pedido.clienteTelefono +
+    ". Aguardo así me confirmás stock y abono el total. Te adjunto el PDF del pedido."
+  );
+}
+
 async function compartirPedido(opciones) {
   const archivos = opciones.incluirExcel && ultimoExcelFile ? [ultimoPdfFile, ultimoExcelFile] : [ultimoPdfFile];
 
@@ -550,7 +562,7 @@ async function compartirPedido(opciones) {
       await navigator.share({
         files: archivos,
         title: "Nota de Pedido - Panther Distribuciones",
-        text: "Hola, te comparto mi pedido.",
+        text: construirTextoWhatsapp(ultimoPedido),
       });
       return;
     } catch (error) {
@@ -561,18 +573,20 @@ async function compartirPedido(opciones) {
     }
   }
 
-  // Fallback: descargar los archivos y, si corresponde, abrir WhatsApp
-  // del vendedor con el resumen en texto.
+  // Fallback: el navegador no puede adjuntar archivos automáticamente
+  // a WhatsApp (esto no lo permite ningún sitio web, solo el share
+  // nativo del sistema operativo). Se descargan los archivos al
+  // teléfono y se abre WhatsApp con el texto ya escrito; el usuario
+  // adjunta los archivos descargados a mano.
   archivos.forEach(descargarArchivo);
 
   if (opciones.abrirWhatsappVendedor && configuracionApp.whatsapp_vendedor) {
-    const texto = encodeURIComponent(
-      "Hola, te envío mi pedido de " +
-        ultimoPedido.clienteNombre +
-        " por un total de " +
-        formatearMoneda(ultimoPedido.total) +
-        ". Adjunto el comprobante descargado."
-    );
+    const nota = document.getElementById("share-fallback-note");
+    if (nota) {
+      nota.style.display = "block";
+    }
+
+    const texto = encodeURIComponent(construirTextoWhatsapp(ultimoPedido));
     const urlWhatsapp = "https://wa.me/" + configuracionApp.whatsapp_vendedor + "?text=" + texto;
 
     // Se usa una navegación directa (location.href) en vez de
@@ -608,6 +622,10 @@ function reiniciarDespuesDePedido() {
   const aviso = document.getElementById("stock-warning-box");
   if (aviso) {
     aviso.style.display = "none";
+  }
+  const nota = document.getElementById("share-fallback-note");
+  if (nota) {
+    nota.style.display = "none";
   }
   actualizarUiCarrito();
   volverAlCatalogo();

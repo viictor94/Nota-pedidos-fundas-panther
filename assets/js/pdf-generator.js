@@ -129,24 +129,48 @@ function formatearMoneda(numero) {
   return "$" + Number(numero).toFixed(2);
 }
 
+// Arma una pantalla completa que tapa visualmente al comprobante
+// mientras se genera el PDF. Es necesaria porque html2canvas rearma
+// los estilos reales del nodo capturado: si el nodo se oculta con
+// opacity:0 (como se hacía antes), la captura también sale
+// transparente/en blanco. Acá el nodo queda realmente pintado en
+// pantalla (opaco, dentro del viewport), y este overlay -que sí es
+// opaco y va arriba en el z-index- es lo único que el usuario ve.
+function crearOverlayCargando() {
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.zIndex = "99999";
+  overlay.style.background = "#ffffff";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.fontFamily = "Arial, sans-serif";
+  overlay.style.color = "#3e863c";
+  overlay.style.fontWeight = "700";
+  overlay.textContent = "Generando comprobante...";
+  return overlay;
+}
+
 // Genera el PDF del pedido y devuelve un File listo para descargar o
 // compartir.
 async function generarPdfPedido(pedido) {
   const nodo = construirNodoComprobante(pedido);
 
-  // Se agrega dentro del área visible (coordenadas 0,0) pero detrás de
-  // todo (z-index negativo) y transparente (opacity 0). Muchos
-  // navegadores mobile NO pintan elementos posicionados muy lejos de
-  // la pantalla (ej. left:-9999px), lo que hacía que html2canvas
-  // capturara un lienzo en blanco; en 0,0 el navegador sí lo pinta,
-  // solo que queda invisible para el usuario.
+  // El nodo se agrega realmente visible y dentro del viewport (0,0),
+  // sin opacity ni posiciones extremas: html2canvas necesita que el
+  // navegador lo haya pintado de verdad para poder capturarlo.
   nodo.style.position = "fixed";
   nodo.style.top = "0";
   nodo.style.left = "0";
-  nodo.style.zIndex = "-9999";
-  nodo.style.opacity = "0";
-  nodo.style.pointerEvents = "none";
+  nodo.style.background = "#ffffff";
+  nodo.style.zIndex = "1";
   document.body.appendChild(nodo);
+
+  // El overlay de carga va arriba (z-index mayor) y tapa por completo
+  // al nodo real, para que el usuario no vea el comprobante "en bruto".
+  const overlay = crearOverlayCargando();
+  document.body.appendChild(overlay);
 
   // Espera a que el logo (imagen embebida) termine de decodificarse
   // antes de rasterizar, para no capturar el nodo a medio pintar.
@@ -154,7 +178,7 @@ async function generarPdfPedido(pedido) {
   if (logoImg && typeof logoImg.decode === "function") {
     await logoImg.decode().catch(function () {});
   }
-  // Fuerza un reflow y le da un frame al navegador para pintar el nodo.
+  // Fuerza un reflow y le da un par de frames al navegador para pintar.
   nodo.offsetHeight;
   await new Promise(function (resolve) {
     requestAnimationFrame(function () {
@@ -177,5 +201,6 @@ async function generarPdfPedido(pedido) {
     return new File([blob], nombreArchivo, { type: "application/pdf" });
   } finally {
     document.body.removeChild(nodo);
+    document.body.removeChild(overlay);
   }
 }
