@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Administración - Gestor de Catálogo</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    /* Pantalla de Bloqueo / Seguridad */
+    .lock-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--color-bg);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      padding: 1rem;
+    }
+    .lock-card {
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      padding: 2.5rem 2rem;
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+      box-shadow: var(--shadow-lg);
+    }
+    .admin-header {
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      padding: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .admin-header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .admin-card {
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-card h2 {
+      color: var(--color-primary);
+      margin-bottom: 0.75rem;
+      font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .dropzone {
+      border: 2px dashed var(--color-primary);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      background: #f0fdf4;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-bottom: 1rem;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      background: #dcfce7;
+      border-color: var(--color-primary-dark);
+    }
+    .dropzone-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .rule-pill-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+    }
+    .rule-pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .product-manager-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    @media (min-width: 768px) {
+      .product-manager-grid {
+        grid-template-columns: 360px 1fr;
+      }
+    }
+    .product-list-sidebar {
+      max-height: 550px;
+      overflow-y: auto;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: #fff;
+    }
+    .product-list-item {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--color-border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: background 0.2s;
+    }
+    .product-list-item:hover {
+      background: #f3f4f6;
+    }
+    .product-list-item.selected {
+      background: #dcfce7;
+      border-left: 4px solid var(--color-primary);
+    }
+    .product-list-item img {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 4px;
+      background: #eee;
+    }
+    .photo-edit-box {
+      text-align: center;
+      padding: 1.5rem;
+      background: #fafafa;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+    }
+    .photo-preview-large {
+      max-width: 260px;
+      max-height: 260px;
+      object-fit: contain;
+      border-radius: var(--radius-md);
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow-sm);
+      background: white;
+    }
+    .table-variants {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.875rem;
+    }
+    .table-variants th, .table-variants td {
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .table-variants th {
+      background: #f9fafb;
+      font-weight: 600;
+      color: var(--color-text-light);
+    }
+    .btn-delete-var {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+    }
+    .btn-delete-var:hover {
+      background: #fee2e2;
+    }
+    .status-toast {
+      padding: 1rem;
+      border-radius: var(--radius-md);
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .status-toast.success {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+    .status-toast.error {
+      display: block;
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PANTALLA DE BLOQUEO / SEGURIDAD (PIN) -->
+  <div id="lock-screen" class="lock-screen">
+    <div class="lock-card">
+      <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔒</div>
+      <h2 style="margin-bottom: 0.5rem; color: var(--color-primary);">Acceso Administrador</h2>
+      <p style="color: var(--color-text-light); font-size: 0.875rem; margin-bottom: 1.5rem;">
+        Ingresa tu PIN de seguridad para acceder al panel de gestión.
+      </p>
+
+      <form id="pin-form">
+        <div class="form-group">
+          <input type="password" id="input-pin" class="form-input" placeholder="PIN de 4 dígitos" maxlength="10" required style="text-align: center; font-size: 1.25rem; letter-spacing: 0.3rem;" autofocus>
+        </div>
+        <div id="pin-error-msg" style="color: #dc2626; font-size: 0.85rem; margin-bottom: 1rem; display: none;">
+          PIN incorrecto. Inténtalo de nuevo.
+        </div>
+        <button type="submit" class="btn-primary" style="justify-content: center; width: 100%; margin-bottom: 0.75rem;">
+          Desbloquear Panel
+        </button>
+        <a href="index.html" class="btn-secondary" style="display: block; text-decoration: none; text-align: center;">
+          ← Volver al Catálogo
+        </a>
+      </form>
+      <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 1rem;">PIN predeterminado: <code>1234</code></p>
+    </div>
+  </div>
+
+  <!-- CONTENIDO PRINCIPAL DEL PANEL (Protegido) -->
+  <div id="admin-main-content" style="display: none;">
+    <header class="admin-header">
+      <div class="admin-header-content">
+        <div>
+          <h1 style="font-size: 1.35rem; color: var(--color-primary); margin: 0;">Panel de Control</h1>
+          <small style="color: var(--color-text-light);">Actualizador de Precios, Stock, Modelos y Fotos</small>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button type="button" id="btn-change-pin" class="btn-secondary" style="margin: 0; width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;">
+            🔑 Cambiar PIN
+          </button>
+          <a href="index.html" class="btn-secondary" style="margin: 0; width: auto; padding: 0.5rem 1rem; font-size: 0.875rem;">
+            ← Ver Catálogo
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main class="container" style="padding-top: 1.5rem;">
+
+      <div id="status-toast" class="status-toast"></div>
+
+      <!-- SECCIÓN 1: SUBIR EXCEL DE PRECIOS Y STOCK -->
+      <section class="admin-card">
+        <h2>📊 1. Actualizar Precios y Stock desde Excel</h2>
+        <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.95rem;">
+          Sube la lista del sistema (archivo <code>.xlsx</code>, <code>.xls</code> o <code>.csv</code>) con las columnas <strong>Codigo</strong>, <strong>Descripcion</strong>, <strong>Precio</strong> y <strong>Stock</strong>.
+        </p>
+
+        <div class="dropzone" id="excel-dropzone">
+          <div class="dropzone-icon">📁</div>
+          <strong style="font-size: 1.1rem; color: var(--color-primary);">Haz clic aquí o arrastra tu archivo Excel</strong>
+          <p style="color: var(--color-text-light); margin-top: 0.35rem; font-size: 0.85rem;">Soporta archivos .xlsx, .xls y .csv</p>
+          <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" style="display: none;">
+        </div>
+
+        <div style="background: #f8fafc; border-radius: var(--radius-md); padding: 1rem; border: 1px solid #e2e8f0;">
+          <strong style="font-size: 0.85rem; color: var(--color-text);">Criterio de Stock Automático aplicado:</strong>
+          <div class="rule-pill-container">
+            <span class="rule-pill stock-badge hay-stock">≥ 100 unid. ➔ HAY STOCK</span>
+            <span class="rule-pill stock-badge poco-stock">&gt; 50 unid. ➔ POCO STOCK</span>
+            <span class="rule-pill stock-badge por-agotarse">&gt; 10 unid. ➔ POR AGOTARSE</span>
+            <span class="rule-pill stock-badge sin-stock">≤ 10 unid. ➔ SIN STOCK</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECCIÓN 2: GESTOR DE FOTOS, MODELOS Y VARIANTES -->
+      <section class="admin-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+          <h2 style="margin: 0;">🖼️ 2. Gestor de Fotos y Modelos de Fundas</h2>
+          <button type="button" class="btn-primary" id="btn-open-create-product" style="width: auto; padding: 0.5rem 1rem; font-size: 0.875rem;">
+            ➕ Agregar Nuevo Producto / Funda
+          </button>
+        </div>
+        <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.95rem;">
+          Selecciona una funda para cambiar su foto, agregar o eliminar modelos de teléfonos, o eliminar el producto por completo.
+        </p>
+
+        <div class="product-manager-grid">
+          <!-- Barra lateral de productos -->
+          <div>
+            <input type="text" id="search-product" class="form-input" placeholder="🔍 Buscar modelo de funda..." style="margin-bottom: 0.75rem;">
+            <div id="product-list-sidebar" class="product-list-sidebar">
+              <!-- Lista de productos generada con JS -->
+            </div>
+          </div>
+
+          <!-- Detalle y editor del producto seleccionado -->
+          <div id="product-detail-box" style="display: none;">
+            <div class="admin-card" style="margin-bottom: 1rem; background: #fff;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 id="selected-product-title" style="margin: 0; color: var(--color-text); font-size: 1.2rem;">Nombre del Producto</h3>
+                <button type="button" id="btn-delete-product" class="btn-secondary" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.8rem; color: #dc2626; border-color: #fca5a5;">
+                  🗑️ Eliminar este Producto
+                </button>
+              </div>
+              
+              <div class="photo-edit-box">
+                <img id="selected-product-img" src="" alt="Foto Producto" class="photo-preview-large">
+                <div>
+                  <button type="button" class="btn-primary" id="btn-trigger-photo-upload" style="margin: 0 auto; width: auto; padding: 0.6rem 1.25rem;">
+                    📷 Cambiar Foto de este Producto
+                  </button>
+                  <input type="file" id="photo-file-input" accept="image/*" style="display: none;">
+                  <p style="font-size: 0.75rem; color: var(--color-text-light); margin-top: 0.5rem;">
+                    Se optimiza automáticamente para mantener la app rápida.
+                  </p>
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; margin-bottom: 0.5rem;">
+                <h4 style="margin: 0;">Variantes y Modelos compatibles:</h4>
+                <button type="button" id="btn-open-add-variant" class="btn-primary" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                  ➕ Agregar Variante
+                </button>
+              </div>
+
+              <div style="overflow-x: auto;">
+                <table class="table-variants">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Modelo de Teléfono</th>
+                      <th>Precio</th>
+                      <th>Stock</th>
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="variants-table-body">
+                    <!-- Filas generadas vía JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: CREAR NUEVO PRODUCTO / FUNDA -->
+  <div id="modal-create-product" class="modal-overlay">
+    <div class="modal-content" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3 class="modal-title">➕ Agregar Nuevo Modelo de Funda</h3>
+        <button id="btn-close-create-product" class="btn-close">×</button>
+      </div>
+      <form id="form-create-product" class="modal-body-scroll" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div class="form-group">
+          <label class="form-label" for="new-product-name">Nombre de la Funda *</label>
+          <input type="text" id="new-product-name" class="form-input" placeholder="Ej: TPU KIKIGO TITANIUM GLOW" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Foto de la Funda</label>
+          <input type="file" id="new-product-photo" accept="image/*" class="form-input">
+        </div>
+
+        <div class="form-group" style="margin-top: 0.5rem;">
+          <label class="form-label" for="new-product-variants-text" style="font-weight: 600;">
+            Modelos y Variantes (SKU | Descripción)
+          </label>
+          <p style="font-size: 0.8rem; color: var(--color-text-light); margin-bottom: 0.4rem;">
+            Escribe o pega una lista de variantes (una por línea). Formato: <code>SKU | Modelo</code> o pega directo desde Excel:
+          </p>
+          <textarea id="new-product-variants-text" class="form-input" rows="7" style="font-family: monospace; font-size: 0.85rem; line-height: 1.4;" placeholder="42651 | MOTO G13/G23&#10;40328 | IPHONE 13 MINI&#10;42277 | IPHONE 15 PLUS&#10;42274 | IPHONE 15 PRO&#10;42275 | IPHONE 15 PRO MAX"></textarea>
+        </div>
+
+        <p style="font-size: 0.8rem; color: var(--color-text-light); background: #f8fafc; padding: 0.6rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+          ℹ️ <strong>Nota:</strong> Puedes cargar tantas variantes como quieras ahora (o agregar más después). El precio y el stock se calcularán automáticamente al subir la lista madre de Excel.
+        </p>
+
+        <div class="modal-footer-sticky" style="margin-top: 0.5rem;">
+          <button type="submit" class="btn-primary" style="justify-content: center; width: 100%;">
+            Guardar Producto y Variantes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AGREGAR VARIANTES A PRODUCTO EXISTENTE -->
+  <div id="modal-add-variant" class="modal-overlay">
+    <div class="modal-content" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3 class="modal-title">➕ Agregar Variantes al Producto</h3>
+        <button id="btn-close-add-variant" class="btn-close">×</button>
+      </div>
+      <form id="form-add-variant" class="modal-body-scroll" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div class="form-group">
+          <label class="form-label" for="add-variants-text" style="font-weight: 600;">
+            Lista de Variantes a Agregar (SKU | Descripción)
+          </label>
+          <p style="font-size: 0.8rem; color: var(--color-text-light); margin-bottom: 0.4rem;">
+            Escribe o pega una o múltiples variantes a la vez (una por línea). Formato: <code>SKU | Modelo</code> o copia columnas de Excel:
+          </p>
+          <textarea id="add-variants-text" class="form-input" rows="7" style="font-family: monospace; font-size: 0.85rem; line-height: 1.4;" placeholder="49876 | SAMSUNG S24 ULTRA&#10;49877 | SAMSUNG S24 PLUS&#10;49878 | SAMSUNG A55" required></textarea>
+        </div>
+
+        <p style="font-size: 0.8rem; color: var(--color-text-light); background: #f8fafc; padding: 0.6rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+          ℹ️ <strong>Nota:</strong> El precio y el stock de estas nuevas variantes se asignarán automáticamente al subir la lista madre de Excel.
+        </p>
+
+        <div class="modal-footer-sticky" style="margin-top: 0.5rem;">
+          <button type="submit" class="btn-primary" style="justify-content: center; width: 100%;">
+            Guardar y Agregar Variantes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SheetJS para procesar Excel en el navegador -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Datos iniciales y lógica del panel -->
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/admin.js"></script>
+</body>
+</html>

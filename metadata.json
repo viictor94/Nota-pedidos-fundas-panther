@@ -1,0 +1,6 @@
+{
+  "name": "FreshMarket",
+  "description": "Catálogo de Productos y App de Pedidos - Mercado Directo",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

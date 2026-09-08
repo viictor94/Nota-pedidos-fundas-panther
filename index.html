@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nota de pedidos Fundas - Panther Distribuciones</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+  <header style="background: white; border-bottom: 1.5px solid rgba(62, 134, 60, 0.15); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04); padding: 0.85rem 1.25rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; gap: 1rem;">
+      
+      <!-- Costado Izquierdo: Logo Panther Más Grande -->
+      <div style="display: flex; align-items: center;">
+        <img src="assets/img/Logos Clasico - .png" alt="Panther Distribuciones" style="height: 78px; max-height: 85px; width: auto; object-fit: contain;">
+      </div>
+
+      <!-- Costado Derecho: Título, Fecha y Carrito -->
+      <div style="display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 0.35rem;">
+        <h1 style="margin: 0; font-size: 1.35rem; font-weight: 800; color: var(--color-text); line-height: 1.2;">
+          Nota de pedidos Fundas
+        </h1>
+        <p id="catalog-last-updated" style="margin: 0; font-size: 0.8rem; color: var(--color-text-light); font-weight: 500;">
+          🔄 Actualizado: <span id="last-updated-text" style="color: var(--color-primary); font-weight: 700;">Cargando...</span>
+        </p>
+        <button id="btn-header-cart" class="header-cart-btn" style="display: none; margin-top: 0.25rem;">
+          🛒 Ver Pedido (<span id="header-cart-count">0</span>)
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="container">
+    
+    <!-- Sección de Catálogo -->
+    <section id="catalog-section" class="catalog-section">
+      <div id="catalog-grid" class="catalog-grid">
+        <!-- Los productos se insertan aquí vía JS -->
+      </div>
+      <div id="load-more-container" style="text-align: center; margin-top: 2rem; margin-bottom: 1.5rem; display: none;">
+        <button type="button" id="btn-load-more" class="btn-primary" style="margin: 0 auto; padding: 0.75rem 2.25rem; border-radius: 25px; box-shadow: var(--shadow-md); font-weight: 700;">
+          ⬇️ Cargar más modelos (<span id="load-more-count">0</span> restantes)
+        </button>
+      </div>
+    </section>
+
+    <!-- Sección de Checkout -->
+    <section id="checkout-section" class="checkout-section">
+      <button id="btn-back-catalog" class="btn-secondary">← Volver al Catálogo</button>
+      
+      <h2>Finalizar Pedido</h2>
+      
+      <div class="notice">
+        <strong>Aviso:</strong> Primero se verificará la existencia de stock de todos los productos antes de confirmarle los datos para que realice el pago.
+      </div>
+
+      <form id="checkout-form">
+        <div class="form-group">
+          <label class="form-label" for="customer-name">Nombre Completo *</label>
+          <input type="text" id="customer-name" class="form-input" required autocomplete="name">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="customer-phone">Teléfono de Contacto *</label>
+          <input type="tel" id="customer-phone" class="form-input" required autocomplete="tel">
+        </div>
+
+        <h3>Detalle del Pedido</h3>
+        <div id="cart-summary-container" class="cart-summary">
+          <!-- El resumen del carrito se inserta aquí vía JS -->
+        </div>
+
+        <div class="action-buttons" id="checkout-actions" style="justify-content: center;">
+          <button type="submit" class="btn-primary" id="btn-confirm-order" style="justify-content: center;">
+            Confirmar Pedido
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <footer style="text-align: center; margin-top: 3rem; padding-bottom: 2rem; color: var(--color-text-light); font-size: 0.8rem;">
+      <a href="admin.html" style="color: #9ca3af; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+        🔒 Acceso Administrador
+      </a>
+    </footer>
+
+  </main>
+
+  <!-- Botón flotante para terminar pedido (visible cuando hay ítems) -->
+  <div id="sticky-cart" class="sticky-footer">
+    <button id="btn-terminar-pedido" class="btn-primary">
+      <span>Terminar Pedido</span>
+      <span id="cart-total-preview">$0.00 (<span id="cart-qty-preview">0</span> art.)</span>
+    </button>
+  </div>
+
+  <!-- Modal de Variantes -->
+  <div id="variant-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-product-title" class="modal-title">Producto</h3>
+        <button id="btn-close-modal" class="btn-close">×</button>
+      </div>
+      
+      <div class="modal-body-scroll">
+        <img id="modal-product-image" class="modal-product-image" src="" alt="">
+        <div id="modal-variants-list" class="variant-list">
+          <!-- Las variantes se insertan aquí vía JS -->
+        </div>
+      </div>
+
+      <div class="modal-footer-sticky">
+        <button id="btn-modal-listo" class="btn-primary" style="width: 100%; justify-content: center;">
+          ✓ Listo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Éxito -->
+  <div id="success-modal" class="modal-overlay">
+    <div class="modal-content" style="text-align: center;">
+      <h3 style="color: var(--color-primary); margin-bottom: 0.75rem;">✅ ¡Pedido Creado!</h3>
+      <p style="margin-bottom: 1.25rem; color: var(--color-text-light);">Elige una opción para descargar tu comprobante o enviarlo:</p>
+      
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 0.75rem; width: 100%;">
+        <button type="button" class="btn-primary" id="btn-share-vendor" style="max-width: 400px; width: 100%; justify-content: center;">
+          📲 1. Enviar PDF a Vendedor por WhatsApp
+        </button>
+        <button type="button" class="btn-secondary" id="btn-share-generic" style="max-width: 400px; width: 100%;">
+          💬 2. Descargar PDF y Compartir a otro contacto
+        </button>
+        <button type="button" class="btn-secondary" id="btn-download-only" style="max-width: 400px; width: 100%; border-style: dashed; font-weight: 500;">
+          📥 3. Solo Descargar Comprobante PDF
+        </button>
+      </div>
+      <button id="btn-close-success" class="btn-secondary" style="margin-top: 1.25rem; width: auto; padding: 0.5rem 2rem; font-size: 0.875rem;">Volver al Catálogo</button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="assets/js/logo.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
