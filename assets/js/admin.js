@@ -94,6 +94,7 @@ function wireEventosEstaticos() {
   document.getElementById("photo-file-input").addEventListener("change", manejarCambioFoto);
 
   document.getElementById("btn-delete-product").addEventListener("click", manejarClickEliminarProducto);
+  document.getElementById("checkbox-en-promo").addEventListener("change", manejarCambioEnPromo);
 }
 
 // ---------------------------------------------------------------------
@@ -371,7 +372,7 @@ function crearItemListaProducto(producto) {
   item.appendChild(img);
 
   const nombre = document.createElement("span");
-  nombre.textContent = producto.nombre;
+  nombre.textContent = (producto.en_promo ? "🔥 " : "") + producto.nombre;
   item.appendChild(nombre);
 
   item.addEventListener("click", function () {
@@ -393,6 +394,7 @@ function renderDetalleProducto(productoId) {
   document.getElementById("selected-product-title").textContent = producto.nombre;
   document.getElementById("selected-product-img").src =
     producto.imagen_url || "assets/img/placeholder-producto.svg";
+  document.getElementById("checkbox-en-promo").checked = Boolean(producto.en_promo);
 
   const cuerpoTabla = document.getElementById("variants-table-body");
   while (cuerpoTabla.firstChild) {
@@ -402,6 +404,22 @@ function renderDetalleProducto(productoId) {
   producto.variantes.forEach(function (variante) {
     cuerpoTabla.appendChild(crearFilaTablaVariante(variante));
   });
+}
+
+// Tilda/destilda el cartel de "Promoción" del producto seleccionado.
+async function manejarCambioEnPromo(evento) {
+  if (!productoSeleccionadoId) return;
+
+  const marcado = evento.target.checked;
+  try {
+    await actualizarProducto(productoSeleccionadoId, { en_promo: marcado });
+    productosAdmin = await obtenerCatalogoCompleto();
+    renderListaProductos(document.getElementById("search-product").value);
+    mostrarToast(marcado ? "Producto destacado como promoción." : "Se sacó de promoción.", "success");
+  } catch (error) {
+    evento.target.checked = !marcado;
+    mostrarToast("No se pudo actualizar la promoción.", "error");
+  }
 }
 
 function crearFilaTablaVariante(variante) {

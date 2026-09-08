@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   try {
     const [catalogo, config] = await Promise.all([obtenerCatalogo(), obtenerConfig()]);
-    catalogoCompleto = catalogo;
+    catalogoCompleto = ordenarConPromosPrimero(catalogo);
     configuracionApp = config;
     actualizarTextoUltimaActualizacion(config.catalogo_actualizado_en);
     renderCatalogo();
@@ -54,7 +54,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     suscribirCambiosCatalogo(async function () {
       try {
         const [catalogo, config] = await Promise.all([obtenerCatalogo(), obtenerConfig()]);
-        catalogoCompleto = catalogo;
+        catalogoCompleto = ordenarConPromosPrimero(catalogo);
         configuracionApp = config;
         actualizarTextoUltimaActualizacion(config.catalogo_actualizado_en);
         renderCatalogo();
@@ -66,6 +66,15 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Sin tiempo real disponible, el catálogo sigue funcionando normal.
   }
 });
+
+// Los productos marcados "en_promo" desde el admin se muestran primero,
+// para potenciar su venta; dentro de cada grupo se conserva el orden
+// que ya trae la consulta (por "orden" y luego nombre).
+function ordenarConPromosPrimero(catalogo) {
+  return catalogo.slice().sort(function (a, b) {
+    return (b.en_promo ? 1 : 0) - (a.en_promo ? 1 : 0);
+  });
+}
 
 function formatearMoneda(numero) {
   return new Intl.NumberFormat("es-AR", {
@@ -150,10 +159,18 @@ function crearTarjetaProducto(producto) {
   );
 
   const tarjeta = document.createElement("article");
-  tarjeta.className = "product-card";
+  tarjeta.className = "product-card" + (producto.en_promo ? " product-card-promo" : "");
 
   const imagenWrap = document.createElement("div");
   imagenWrap.className = "product-card-image-wrap";
+
+  if (producto.en_promo) {
+    const cartelPromo = document.createElement("span");
+    cartelPromo.className = "promo-badge";
+    cartelPromo.textContent = "🔥 PROMO";
+    imagenWrap.appendChild(cartelPromo);
+  }
+
   const imagen = document.createElement("img");
   imagen.src = producto.imagen_url || "assets/img/placeholder-producto.svg";
   imagen.alt = producto.nombre;
@@ -194,7 +211,9 @@ function crearTarjetaProducto(producto) {
 function abrirModalVariantes(producto) {
   productoEnModal = producto;
 
-  document.getElementById("modal-product-title").textContent = producto.nombre;
+  document.getElementById("modal-product-title").textContent = producto.en_promo
+    ? "🔥 " + producto.nombre
+    : producto.nombre;
   const imagen = document.getElementById("modal-product-image");
   imagen.src = producto.imagen_url || "assets/img/placeholder-producto.svg";
   imagen.alt = producto.nombre;

@@ -170,11 +170,35 @@ a {
   transform: translateY(-2px);
 }
 
+/* Tarjeta de un producto marcado "en_promo" desde el admin: borde y
+   sombra cálidos para que resalte a simple vista en la grilla. */
+.product-card-promo {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1.5px #f59e0b, var(--shadow-sm);
+}
+
 .product-card-image-wrap {
+  position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
   background: #f3f4f6;
   overflow: hidden;
+}
+
+/* Cartel "🔥 PROMO" sobre la esquina de la foto del producto. */
+.promo-badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
 }
 
 .product-card-image-wrap img {
