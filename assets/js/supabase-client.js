@@ -7,12 +7,12 @@
 // Security definidas en supabase/schema.sql (lectura pública del
 // catálogo, escritura solo para usuarios autenticados).
 //
-// IMPORTANTE: reemplazá estos dos valores por los de tu propio
-// proyecto de Supabase (Project Settings > API) antes de usar la app.
+// Proyecto: Panther Distribuciones (ref "chgzmorbyzjzuzglwiov").
 // =====================================================================
 
-const SUPABASE_URL = "https://TU-PROYECTO.supabase.co";
-const SUPABASE_ANON_KEY = "TU-ANON-KEY-AQUI";
+const SUPABASE_URL = "https://chgzmorbyzjzuzglwiov.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoZ3ptb3JieXpqenV6Z2x3aW92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4OTIwMDEsImV4cCI6MjEwNDQ2ODAwMX0.Uugz_IMYYRZL8GTDfKW7zF1QDSBoNodXMhFBR3Fe9F8";
 
 // "supabase" es el global que expone el script UMD de @supabase/supabase-js
 // cargado antes que este archivo en index.html y admin.html.
