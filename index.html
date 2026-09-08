@@ -9,24 +9,25 @@
 <body>
 
   <header style="background: white; border-bottom: 1.5px solid rgba(62, 134, 60, 0.15); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04); padding: 0.85rem 1.25rem;">
-    <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; gap: 1rem;">
-      
-      <!-- Costado Izquierdo: Logo Panther Más Grande -->
-      <div style="display: flex; align-items: center;">
-        <img id="header-logo" src="" alt="Panther Distribuciones" style="height: 78px; max-height: 85px; width: auto; object-fit: contain;">
-      </div>
+    <div style="max-width: 1200px; margin: 0 auto;">
 
-      <!-- Costado Derecho: Título, Fecha y Carrito -->
-      <div style="display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 0.35rem;">
-        <h1 style="margin: 0; font-size: 1.35rem; font-weight: 800; color: var(--color-text); line-height: 1.2;">
-          Nota de pedidos Fundas
-        </h1>
-        <p id="catalog-last-updated" style="margin: 0; font-size: 0.8rem; color: var(--color-text-light); font-weight: 500;">
-          🔄 Actualizado: <span id="last-updated-text" style="color: var(--color-primary); font-weight: 700;">Cargando...</span>
-        </p>
-        <button id="btn-header-cart" class="header-cart-btn" style="display: none; margin-top: 0.25rem;">
-          🛒 Ver Pedido (<span id="header-cart-count">0</span>)
-        </button>
+      <!-- Título arriba, centrado -->
+      <h1 style="margin: 0 0 0.5rem; font-size: 1.25rem; font-weight: 800; color: var(--color-text); line-height: 1.2; text-align: center;">
+        Nota de pedidos Fundas
+      </h1>
+
+      <!-- Ícono centrado abajo; fecha y carrito a un costado -->
+      <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.75rem;">
+        <div></div>
+        <img id="header-logo" src="" alt="Panther Distribuciones" style="height: 78px; max-height: 85px; width: auto; object-fit: contain; justify-self: center;">
+        <div style="display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 0.35rem; justify-self: end;">
+          <p id="catalog-last-updated" style="margin: 0; font-size: 0.8rem; color: var(--color-text-light); font-weight: 500;">
+            🔄 Actualizado: <span id="last-updated-text" style="color: var(--color-primary); font-weight: 700;">Cargando...</span>
+          </p>
+          <button id="btn-header-cart" class="header-cart-btn" style="display: none; text-align: center;">
+            <span>🛒 Ver Pedido (<span id="header-cart-count">0</span>)</span>
+          </button>
+        </div>
       </div>
 
     </div>
