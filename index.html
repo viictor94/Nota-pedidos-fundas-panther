@@ -123,35 +123,31 @@
   <div id="success-modal" class="modal-overlay">
     <div class="modal-content" style="text-align: center;">
       <h3 style="color: var(--color-primary); margin-bottom: 0.75rem;">✅ ¡Pedido Creado!</h3>
-      <p style="margin-bottom: 1.25rem; color: var(--color-text-light);">Elige una opción para descargar tu comprobante o enviarlo:</p>
-      
+      <p style="margin-bottom: 1.25rem; color: var(--color-text-light);">Ya podés compartir el link de tu pedido con la vendedora:</p>
+
       <div style="display: flex; flex-direction: column; align-items: center; gap: 0.75rem; width: 100%;">
         <button type="button" class="btn-primary" id="btn-share-vendor" style="max-width: 400px; width: 100%; justify-content: center;">
-          📲 1. Enviar PDF a Vendedor por WhatsApp
+          📲 1. Enviar link a la Vendedora por WhatsApp
         </button>
         <button type="button" class="btn-secondary" id="btn-share-generic" style="max-width: 400px; width: 100%;">
-          💬 2. Descargar PDF y Compartir a otro contacto
+          💬 2. Compartir link a otro contacto
         </button>
-        <button type="button" class="btn-secondary" id="btn-download-only" style="max-width: 400px; width: 100%; border-style: dashed; font-weight: 500;">
-          📥 3. Solo Descargar Comprobante PDF
-        </button>
+        <a id="link-ver-pedido" href="#" target="_blank" rel="noopener" style="max-width: 400px; width: 100%; text-align: center; font-size: 0.85rem; color: var(--color-primary); text-decoration: underline;">
+          Ver mi pedido
+        </a>
       </div>
       <p id="share-fallback-note" style="display: none; margin-top: 1rem; font-size: 0.8rem; color: var(--color-text-light); background: #fef9c3; border: 1px solid #fde68a; border-radius: var(--radius-md); padding: 0.75rem;">
-        Se descargaron el PDF y el Excel a tu teléfono. Se abrió WhatsApp con el mensaje listo: adjuntá los dos archivos desde "Adjuntar → Documento" antes de enviarlo.
+        Se abrió WhatsApp con el link de tu pedido ya escrito en el mensaje.
       </p>
       <button id="btn-close-success" class="btn-secondary" style="margin-top: 1.25rem; width: auto; padding: 0.5rem 2rem; font-size: 0.875rem;">Volver al Catálogo</button>
     </div>
   </div>
 
   <!-- Scripts -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="assets/js/logo.js"></script>
   <script src="assets/js/supabase-client.js"></script>
   <script src="assets/js/data.js"></script>
-  <script src="assets/js/pdf-generator.js"></script>
-  <script src="assets/js/excel-generator.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>

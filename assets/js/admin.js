@@ -1,7 +1,8 @@
 // =====================================================================
 // Lógica del panel de administración (admin.html): acceso por PIN,
 // configuración general, actualización masiva de precios/stock desde
-// Excel, y gestor de productos/variantes/fotos.
+// Excel, gestor de productos/variantes/fotos, y listado de pedidos
+// recibidos (con descarga de Excel por pedido, solo para el admin).
 //
 // Reglas de código del proyecto (AGENTS.md): sin innerHTML, sin
 // alert/confirm/prompt (los borrados usan confirmación de doble click
@@ -147,10 +148,15 @@ async function manejarSubmitCambiarPin(evento) {
 
 async function cargarDatosAdmin() {
   try {
-    const [config, catalogo] = await Promise.all([obtenerConfig(), obtenerCatalogoCompleto()]);
+    const [config, catalogo, pedidos] = await Promise.all([
+      obtenerConfig(),
+      obtenerCatalogoCompleto(),
+      obtenerPedidos(),
+    ]);
     document.getElementById("config-whatsapp").value = config.whatsapp_vendedor || "";
     productosAdmin = catalogo;
     renderListaProductos("");
+    renderTablaPedidos(pedidos);
   } catch (error) {
     mostrarToast("No se pudieron cargar los datos del panel.", "error");
   }
@@ -238,6 +244,101 @@ function normalizarFilaExcelPrecios(fila) {
     precio: clavePrecio ? Number(fila[clavePrecio]) : null,
     stock_cantidad: claveStock ? Number(fila[claveStock]) : null,
   };
+}
+
+// ---------------------------------------------------------------------
+// Sección 3: Pedidos recibidos
+// ---------------------------------------------------------------------
+
+function renderTablaPedidos(pedidos) {
+  const cuerpo = document.getElementById("orders-table-body");
+  while (cuerpo.firstChild) {
+    cuerpo.removeChild(cuerpo.firstChild);
+  }
+
+  pedidos.forEach(function (pedido) {
+    cuerpo.appendChild(crearFilaPedido(pedido));
+  });
+}
+
+function crearFilaPedido(pedido) {
+  const fila = document.createElement("tr");
+
+  const celdaFecha = document.createElement("td");
+  celdaFecha.textContent = new Date(pedido.created_at).toLocaleString("es-AR");
+  fila.appendChild(celdaFecha);
+
+  const celdaCliente = document.createElement("td");
+  celdaCliente.textContent = pedido.cliente_nombre;
+  fila.appendChild(celdaCliente);
+
+  const celdaTelefono = document.createElement("td");
+  celdaTelefono.textContent = pedido.cliente_telefono;
+  fila.appendChild(celdaTelefono);
+
+  const celdaArticulos = document.createElement("td");
+  celdaArticulos.textContent = String(pedido.cantidad_articulos);
+  fila.appendChild(celdaArticulos);
+
+  const celdaTotal = document.createElement("td");
+  celdaTotal.textContent = formatearMoneda(pedido.total);
+  fila.appendChild(celdaTotal);
+
+  const celdaAcciones = document.createElement("td");
+  celdaAcciones.style.display = "flex";
+  celdaAcciones.style.gap = "0.5rem";
+
+  const btnExcel = document.createElement("button");
+  btnExcel.type = "button";
+  btnExcel.className = "btn-secondary";
+  btnExcel.style.width = "auto";
+  btnExcel.style.padding = "0.35rem 0.75rem";
+  btnExcel.style.fontSize = "0.8rem";
+  btnExcel.textContent = "⬇️ Excel";
+  btnExcel.addEventListener("click", function () {
+    descargarExcelPedido(pedido);
+  });
+  celdaAcciones.appendChild(btnExcel);
+
+  const enlaceVer = document.createElement("a");
+  enlaceVer.href = "pedido.html?id=" + pedido.id;
+  enlaceVer.target = "_blank";
+  enlaceVer.rel = "noopener";
+  enlaceVer.className = "btn-secondary";
+  enlaceVer.style.width = "auto";
+  enlaceVer.style.padding = "0.35rem 0.75rem";
+  enlaceVer.style.fontSize = "0.8rem";
+  enlaceVer.style.textDecoration = "none";
+  enlaceVer.textContent = "👁️ Ver";
+  celdaAcciones.appendChild(enlaceVer);
+
+  fila.appendChild(celdaAcciones);
+
+  return fila;
+}
+
+// Genera (con excel-generator.js) y descarga el Excel de un pedido
+// puntual, solo en el navegador del admin: al cliente nunca se le
+// descarga nada.
+function descargarExcelPedido(pedido) {
+  const archivo = generarExcelPedido({
+    id: pedido.id,
+    fecha: pedido.created_at,
+    clienteNombre: pedido.cliente_nombre,
+    clienteTelefono: pedido.cliente_telefono,
+    cantidadArticulos: pedido.cantidad_articulos,
+    total: pedido.total,
+    items: pedido.items,
+  });
+
+  const url = URL.createObjectURL(archivo);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = archivo.name;
+  document.body.appendChild(enlace);
+  enlace.click();
+  document.body.removeChild(enlace);
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------

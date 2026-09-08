@@ -360,6 +360,31 @@
         </div>
       </section>
 
+      <!-- SECCIÓN 3: PEDIDOS RECIBIDOS -->
+      <section class="admin-card">
+        <h2>🧾 3. Pedidos Recibidos</h2>
+        <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.95rem;">
+          Pedidos armados por clientes desde la web. Descargá el Excel de cada uno o abrí el link para ver el detalle completo.
+        </p>
+        <div style="overflow-x: auto;">
+          <table class="table-variants">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Teléfono</th>
+                <th>Artículos</th>
+                <th>Total</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="orders-table-body">
+              <!-- Filas generadas vía JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -467,6 +492,7 @@
   <script src="assets/js/supabase-client.js"></script>
   <!-- Datos iniciales y lógica del panel -->
   <script src="assets/js/data.js"></script>
+  <script src="assets/js/excel-generator.js"></script>
   <script src="assets/js/admin.js"></script>
 </body>
 </html>

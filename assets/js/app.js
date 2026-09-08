@@ -1,7 +1,8 @@
 // =====================================================================
 // Lógica del catálogo cliente (index.html): render de productos,
-// carrito en memoria, checkout, generación de PDF/Excel y envío por
-// WhatsApp.
+// carrito en memoria, checkout y envío del link del pedido por
+// WhatsApp (pedido.html, en vez de generar PDF/Excel en el navegador:
+// resultó poco confiable en varios celulares).
 //
 // Reglas de código del proyecto (AGENTS.md): sin innerHTML (todo con
 // createElement/appendChild), sin alert/confirm/prompt (todo feedback
@@ -25,11 +26,8 @@ let carrito = {};
 // Producto actualmente abierto en el modal de variantes.
 let productoEnModal = null;
 
-// Archivos generados del último pedido confirmado (para los botones
-// del modal de éxito).
+// Último pedido confirmado (para los botones del modal de éxito).
 let ultimoPedido = null;
-let ultimoPdfFile = null;
-let ultimoExcelFile = null;
 
 // ---------------------------------------------------------------------
 // Inicialización
@@ -69,6 +67,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 });
 
+function formatearMoneda(numero) {
+  return "$" + Number(numero).toFixed(2);
+}
+
 function actualizarTextoUltimaActualizacion(fechaIso) {
   const texto = document.getElementById("last-updated-text");
   if (!texto) return;
@@ -102,13 +104,10 @@ function wireEventosEstaticos() {
   document.getElementById("checkout-form").addEventListener("submit", manejarSubmitCheckout);
 
   document.getElementById("btn-share-vendor").addEventListener("click", function () {
-    compartirPedido({ incluirExcel: true, abrirWhatsappVendedor: true });
+    compartirPedido({ abrirWhatsappVendedor: true });
   });
   document.getElementById("btn-share-generic").addEventListener("click", function () {
-    compartirPedido({ incluirExcel: true, abrirWhatsappVendedor: false });
-  });
-  document.getElementById("btn-download-only").addEventListener("click", function () {
-    descargarArchivo(ultimoPdfFile);
+    compartirPedido({ abrirWhatsappVendedor: false });
   });
   document.getElementById("btn-close-success").addEventListener("click", function () {
     ocultarModal(document.getElementById("success-modal"));
@@ -470,8 +469,8 @@ async function manejarSubmitCheckout(evento) {
       fecha: registrado.created_at,
     });
 
-    ultimoPdfFile = await generarPdfPedido(ultimoPedido);
-    ultimoExcelFile = generarExcelPedido(ultimoPedido);
+    const linkPedido = document.getElementById("link-ver-pedido");
+    linkPedido.href = "pedido.html?id=" + registrado.id;
 
     mostrarModal(document.getElementById("success-modal"));
   } catch (error) {
@@ -536,34 +535,31 @@ function mostrarAvisoStock(mensaje) {
 }
 
 // ---------------------------------------------------------------------
-// Modal de éxito: compartir / descargar
+// Modal de éxito: compartir el link del pedido (pedido.html)
 // ---------------------------------------------------------------------
 
-// Mensaje que se envía al vendedor, tanto adjunto al compartir nativo
-// como pre-cargado en el link de WhatsApp del fallback.
+// Mensaje que se envía al vendedor con el link de pedido.html. Se
+// comparte el LINK en vez de archivos (PDF/Excel generados en el
+// navegador resultaron poco confiables en varios celulares): la
+// vendedora entra al link y ve el detalle completo del pedido.
 function construirTextoWhatsapp(pedido) {
+  const url = window.location.origin + window.location.pathname.replace(/index\.html$/, "") + "pedido.html?id=" + pedido.id;
   return (
     "Hola! Armé mi pedido por la web de fundas. Te dejo mis datos: nombre: " +
     pedido.clienteNombre +
     ", teléfono: " +
     pedido.clienteTelefono +
-    ". Aguardo así me confirmás stock y abono el total. Te adjunto el PDF del pedido."
+    ". Aguardo así me confirmás stock y abono el total. Podés ver el detalle acá: " +
+    url
   );
 }
 
 async function compartirPedido(opciones) {
-  const archivos = opciones.incluirExcel && ultimoExcelFile ? [ultimoPdfFile, ultimoExcelFile] : [ultimoPdfFile];
+  const texto = construirTextoWhatsapp(ultimoPedido);
 
-  const puedeCompartirArchivos =
-    typeof navigator.canShare === "function" && navigator.canShare({ files: archivos });
-
-  if (puedeCompartirArchivos) {
+  if (typeof navigator.share === "function") {
     try {
-      await navigator.share({
-        files: archivos,
-        title: "Nota de Pedido - Panther Distribuciones",
-        text: construirTextoWhatsapp(ultimoPedido),
-      });
+      await navigator.share({ title: "Nota de Pedido - Panther Distribuciones", text: texto });
       return;
     } catch (error) {
       // El usuario cancela el cuadro de compartir: no es un error real.
@@ -573,51 +569,23 @@ async function compartirPedido(opciones) {
     }
   }
 
-  // Fallback: el navegador no puede adjuntar archivos automáticamente
-  // a WhatsApp (esto no lo permite ningún sitio web, solo el share
-  // nativo del sistema operativo). Se descargan los archivos al
-  // teléfono y se abre WhatsApp con el texto ya escrito; el usuario
-  // adjunta los archivos descargados a mano.
-  archivos.forEach(descargarArchivo);
+  // Fallback sin Web Share API: abre WhatsApp directo con el texto (y
+  // el link) ya escrito.
+  const destino = opciones.abrirWhatsappVendedor && configuracionApp.whatsapp_vendedor
+    ? "https://wa.me/" + configuracionApp.whatsapp_vendedor
+    : "https://wa.me/";
 
-  if (opciones.abrirWhatsappVendedor && configuracionApp.whatsapp_vendedor) {
-    const nota = document.getElementById("share-fallback-note");
-    if (nota) {
-      nota.style.display = "block";
-    }
-
-    const texto = encodeURIComponent(construirTextoWhatsapp(ultimoPedido));
-    const urlWhatsapp = "https://wa.me/" + configuracionApp.whatsapp_vendedor + "?text=" + texto;
-
-    // Se usa una navegación directa (location.href) en vez de
-    // window.open: en mobile, abrir una ventana nueva después de un
-    // "await" (como el intento de navigator.share de más arriba) suele
-    // perder el permiso del navegador para cambiar de app, y termina
-    // abriendo una pestaña en blanco en lugar de WhatsApp. Se espera
-    // un instante para dar tiempo a que arranquen las descargas antes
-    // de navegar.
-    setTimeout(function () {
-      window.location.href = urlWhatsapp;
-    }, 400);
+  const nota = document.getElementById("share-fallback-note");
+  if (nota) {
+    nota.style.display = "block";
   }
-}
 
-function descargarArchivo(archivo) {
-  const url = URL.createObjectURL(archivo);
-  const enlace = document.createElement("a");
-  enlace.href = url;
-  enlace.download = archivo.name;
-  document.body.appendChild(enlace);
-  enlace.click();
-  document.body.removeChild(enlace);
-  URL.revokeObjectURL(url);
+  window.location.href = destino + "?text=" + encodeURIComponent(texto);
 }
 
 function reiniciarDespuesDePedido() {
   carrito = {};
   ultimoPedido = null;
-  ultimoPdfFile = null;
-  ultimoExcelFile = null;
   document.getElementById("checkout-form").reset();
   const aviso = document.getElementById("stock-warning-box");
   if (aviso) {

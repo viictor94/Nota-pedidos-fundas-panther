@@ -173,6 +173,36 @@ begin
 end;
 $$;
 
+-- Lectura pública de UN pedido puntual por id, para la página
+-- pedido.html (el cliente comparte ese link con la vendedora en vez de
+-- archivos, porque generar PDF en el navegador resultó poco confiable
+-- en varios celulares). SECURITY DEFINER: se ejecuta con permisos del
+-- dueño de la función, no del usuario que llama, así que puede leer
+-- "pedidos" aunque su política de SELECT esté restringida al admin.
+-- No expone el resto de la tabla: solo devuelve la fila cuyo id exacto
+-- se pasa por parámetro (funciona como token de acceso, ya que el uuid
+-- no es adivinable), nunca una lista.
+create or replace function public.obtener_pedido_publico(p_id uuid)
+returns table (
+  cliente_nombre     text,
+  cliente_telefono   text,
+  items              jsonb,
+  total              numeric,
+  cantidad_articulos integer,
+  created_at         timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at
+  from public.pedidos
+  where id = p_id;
+$$;
+
+revoke all on function public.obtener_pedido_publico(uuid) from public;
+grant execute on function public.obtener_pedido_publico(uuid) to anon, authenticated;
+
 -- ---------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------

@@ -1,6 +1,8 @@
 // =====================================================================
-// Generador del Excel del pedido (usa SheetJS / XLSX, cargado como
-// <script> en index.html).
+// Generador del Excel de un pedido (usa SheetJS / XLSX). Lo usa
+// exclusivamente el panel admin (admin.html) para descargar el pedido
+// que arma un cliente: el cliente nunca genera ni descarga este
+// archivo, solo comparte el link de pedido.html.
 // =====================================================================
 
 function generarExcelPedido(pedido) {

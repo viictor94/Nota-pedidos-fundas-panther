@@ -91,7 +91,15 @@ function suscribirCambiosCatalogo(callback) {
 // ---------------------------------------------------------------------
 
 async function crearPedido(pedido) {
+  // El id se genera en el navegador (en vez de dejarlo en manos del
+  // default de la base) para poder armar el link "pedido.html?id=..."
+  // apenas se guarda, sin depender de leer la fila de vuelta (el
+  // cliente solo tiene permiso de INSERT sobre "pedidos" por RLS, no
+  // de SELECT).
+  const id = crypto.randomUUID();
+
   const { error } = await supabaseClient.from("pedidos").insert({
+    id: id,
     cliente_nombre: pedido.clienteNombre,
     cliente_telefono: pedido.clienteTelefono,
     items: pedido.items,
@@ -103,13 +111,38 @@ async function crearPedido(pedido) {
     throw error;
   }
 
-  // El cliente solo tiene permiso de INSERT sobre "pedidos" (por RLS),
-  // no de SELECT, así que no se puede pedir de vuelta la fila recién
-  // creada: se arma el mismo dato localmente para el comprobante.
   return {
-    id: crypto.randomUUID(),
+    id: id,
     created_at: new Date().toISOString(),
   };
+}
+
+// Lectura pública de un pedido puntual (para pedido.html). Usa la
+// función obtener_pedido_publico de supabase/schema.sql en vez de un
+// select directo, porque la tabla "pedidos" no tiene lectura pública
+// (protege los datos de otros clientes): esa función solo devuelve la
+// fila exacta pedida por id, nunca una lista.
+async function obtenerPedidoPublico(id) {
+  const { data, error } = await supabaseClient.rpc("obtener_pedido_publico", { p_id: id });
+
+  if (error) {
+    throw error;
+  }
+  return data && data.length > 0 ? data[0] : null;
+}
+
+// Lista todos los pedidos para el panel admin (requiere sesión activa;
+// protegido además por la política RLS "pedidos_lectura_admin").
+async function obtenerPedidos() {
+  const { data, error } = await supabaseClient
+    .from("pedidos")
+    .select("id, cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+  return data;
 }
 
 // ---------------------------------------------------------------------
