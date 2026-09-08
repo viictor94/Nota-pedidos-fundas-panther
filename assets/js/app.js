@@ -573,7 +573,18 @@ async function compartirPedido(opciones) {
         formatearMoneda(ultimoPedido.total) +
         ". Adjunto el comprobante descargado."
     );
-    window.open("https://wa.me/" + configuracionApp.whatsapp_vendedor + "?text=" + texto, "_blank");
+    const urlWhatsapp = "https://wa.me/" + configuracionApp.whatsapp_vendedor + "?text=" + texto;
+
+    // Se usa una navegación directa (location.href) en vez de
+    // window.open: en mobile, abrir una ventana nueva después de un
+    // "await" (como el intento de navigator.share de más arriba) suele
+    // perder el permiso del navegador para cambiar de app, y termina
+    // abriendo una pestaña en blanco en lugar de WhatsApp. Se espera
+    // un instante para dar tiempo a que arranquen las descargas antes
+    // de navegar.
+    setTimeout(function () {
+      window.location.href = urlWhatsapp;
+    }, 400);
   }
 }
 

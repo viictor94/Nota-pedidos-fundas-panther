@@ -134,20 +134,40 @@ function formatearMoneda(numero) {
 async function generarPdfPedido(pedido) {
   const nodo = construirNodoComprobante(pedido);
 
-  // Se agrega fuera de la pantalla visible (no display:none, porque
-  // html2canvas necesita que el elemento tenga layout real para
-  // poder rasterizarlo).
+  // Se agrega dentro del área visible (coordenadas 0,0) pero detrás de
+  // todo (z-index negativo) y transparente (opacity 0). Muchos
+  // navegadores mobile NO pintan elementos posicionados muy lejos de
+  // la pantalla (ej. left:-9999px), lo que hacía que html2canvas
+  // capturara un lienzo en blanco; en 0,0 el navegador sí lo pinta,
+  // solo que queda invisible para el usuario.
   nodo.style.position = "fixed";
   nodo.style.top = "0";
-  nodo.style.left = "-9999px";
+  nodo.style.left = "0";
+  nodo.style.zIndex = "-9999";
+  nodo.style.opacity = "0";
+  nodo.style.pointerEvents = "none";
   document.body.appendChild(nodo);
+
+  // Espera a que el logo (imagen embebida) termine de decodificarse
+  // antes de rasterizar, para no capturar el nodo a medio pintar.
+  const logoImg = nodo.querySelector("img");
+  if (logoImg && typeof logoImg.decode === "function") {
+    await logoImg.decode().catch(function () {});
+  }
+  // Fuerza un reflow y le da un frame al navegador para pintar el nodo.
+  nodo.offsetHeight;
+  await new Promise(function (resolve) {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(resolve);
+    });
+  });
 
   try {
     const blob = await html2pdf()
       .set({
         margin: 10,
         filename: "pedido.pdf",
-        html2canvas: { scale: 2 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       })
       .from(nodo)

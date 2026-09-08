@@ -6,23 +6,19 @@
 function generarExcelPedido(pedido) {
   const filas = pedido.items.map(function (item) {
     return {
-      Producto: item.productoNombre,
-      Modelo: item.modelo,
-      SKU: item.sku,
-      "Precio Unitario": item.precioUnitario,
-      Cantidad: item.cantidad,
-      Subtotal: item.subtotal,
+      sku: item.sku,
+      descripcion: item.productoNombre + " " + item.modelo,
+      cantidad: item.cantidad,
+      precio: item.precioUnitario,
     };
   });
 
   // Fila de total al final de la planilla.
   filas.push({
-    Producto: "",
-    Modelo: "",
-    SKU: "",
-    "Precio Unitario": "",
-    Cantidad: "TOTAL",
-    Subtotal: pedido.total,
+    sku: "",
+    descripcion: "TOTAL",
+    cantidad: pedido.cantidadArticulos,
+    precio: pedido.total,
   });
 
   const hoja = XLSX.utils.json_to_sheet(filas);
