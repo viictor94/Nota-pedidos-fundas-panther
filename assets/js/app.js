@@ -68,7 +68,12 @@ document.addEventListener("DOMContentLoaded", async function () {
 });
 
 function formatearMoneda(numero) {
-  return "$" + Number(numero).toFixed(2);
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(Number(numero));
 }
 
 function actualizarTextoUltimaActualizacion(fechaIso) {
@@ -370,12 +375,17 @@ function mostrarCheckout() {
   }
   document.getElementById("catalog-section").classList.remove("active");
   document.getElementById("checkout-section").classList.add("active");
+  // El botón flotante "Terminar Pedido" no tiene sentido estando ya en
+  // el checkout (ahí está "Confirmar Pedido"): se oculta para no
+  // duplicar la acción en pantalla.
+  document.getElementById("sticky-cart").classList.remove("visible");
   renderResumenCarrito();
 }
 
 function volverAlCatalogo() {
   document.getElementById("checkout-section").classList.remove("active");
   document.getElementById("catalog-section").classList.add("active");
+  actualizarUiCarrito();
 }
 
 function renderResumenCarrito() {

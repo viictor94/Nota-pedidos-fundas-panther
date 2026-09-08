@@ -619,5 +619,10 @@ function ocultarModal(modal) {
 }
 
 function formatearMoneda(numero) {
-  return "$" + Number(numero).toFixed(2);
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(Number(numero));
 }

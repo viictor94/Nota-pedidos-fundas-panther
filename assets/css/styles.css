@@ -249,7 +249,9 @@ a {
   padding: 0.65rem 0.85rem;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-md);
-  font-size: 0.95rem;
+  /* 16px (1rem): por debajo de eso, iOS Safari hace zoom automático de
+     toda la página al tocar el campo, algo molesto en el checkout. */
+  font-size: 1rem;
   color: var(--color-text);
   background: var(--color-surface);
   transition: var(--transition);
@@ -316,18 +318,22 @@ a {
 }
 
 .qty-btn {
-  width: 30px;
-  height: 30px;
+  /* 40px: área de toque cómoda para el dedo (Apple/Google recomiendan
+     un mínimo de ~40-44px), este control se usa mucho al armar el
+     pedido desde el celular. */
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 1.5px solid var(--color-primary);
   background: #fff;
   color: var(--color-primary);
   font-weight: 800;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .qty-btn:hover {
