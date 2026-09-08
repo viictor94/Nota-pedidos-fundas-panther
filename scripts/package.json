@@ -1,0 +1,14 @@
+{
+  "name": "migrar-productos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrar": "node migrar-productos.mjs",
+    "migrar:dry-run": "node migrar-productos.mjs --dry-run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "exceljs": "^4.4.0",
+    "dotenv": "^16.4.5"
+  }
+}

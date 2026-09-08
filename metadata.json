@@ -1,6 +1,4 @@
 {
-  "name": "FreshMarket",
-  "description": "Catálogo de Productos y App de Pedidos - Mercado Directo",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "Nota de Pedidos Fundas - Panther Distribuciones",
+  "description": "Catálogo de fundas de celulares y app de pedidos por WhatsApp para Panther Distribuciones."
 }

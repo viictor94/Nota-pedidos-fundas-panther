@@ -223,7 +223,6 @@
           ← Volver al Catálogo
         </a>
       </form>
-      <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 1rem;">PIN predeterminado: <code>1234</code></p>
     </div>
   </div>
 
@@ -249,6 +248,20 @@
     <main class="container" style="padding-top: 1.5rem;">
 
       <div id="status-toast" class="status-toast"></div>
+
+      <!-- SECCIÓN 0: CONFIGURACIÓN GENERAL -->
+      <section class="admin-card">
+        <h2>⚙️ Configuración General</h2>
+        <form id="form-config">
+          <div class="form-group">
+            <label class="form-label" for="config-whatsapp">Número de WhatsApp del Vendedor</label>
+            <input type="tel" id="config-whatsapp" class="form-input" placeholder="Ej: 5491122334455 (código de país + número, sin espacios ni +)">
+          </div>
+          <button type="submit" class="btn-primary" style="width: auto; padding: 0.5rem 1.25rem; font-size: 0.875rem;">
+            Guardar Configuración
+          </button>
+        </form>
+      </section>
 
       <!-- SECCIÓN 1: SUBIR EXCEL DE PRECIOS Y STOCK -->
       <section class="admin-card">
@@ -422,8 +435,36 @@
     </div>
   </div>
 
+  <!-- MODAL: CAMBIAR PIN -->
+  <div id="modal-change-pin" class="modal-overlay">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔑 Cambiar PIN de Acceso</h3>
+        <button id="btn-close-change-pin" class="btn-close">×</button>
+      </div>
+      <form id="form-change-pin" class="modal-body-scroll" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div class="form-group">
+          <label class="form-label" for="current-pin">PIN Actual *</label>
+          <input type="password" id="current-pin" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-pin">PIN Nuevo (mínimo 4 caracteres) *</label>
+          <input type="password" id="new-pin" class="form-input" minlength="4" required>
+        </div>
+        <div id="change-pin-error-msg" style="color: #dc2626; font-size: 0.85rem; display: none;"></div>
+        <div class="modal-footer-sticky">
+          <button type="submit" class="btn-primary" style="justify-content: center; width: 100%;">
+            Guardar Nuevo PIN
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- SheetJS para procesar Excel en el navegador -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="assets/js/supabase-client.js"></script>
   <!-- Datos iniciales y lógica del panel -->
   <script src="assets/js/data.js"></script>
   <script src="assets/js/admin.js"></script>
