@@ -91,22 +91,25 @@ function suscribirCambiosCatalogo(callback) {
 // ---------------------------------------------------------------------
 
 async function crearPedido(pedido) {
-  const { data, error } = await supabaseClient
-    .from("pedidos")
-    .insert({
-      cliente_nombre: pedido.clienteNombre,
-      cliente_telefono: pedido.clienteTelefono,
-      items: pedido.items,
-      total: pedido.total,
-      cantidad_articulos: pedido.cantidadArticulos,
-    })
-    .select()
-    .single();
+  const { error } = await supabaseClient.from("pedidos").insert({
+    cliente_nombre: pedido.clienteNombre,
+    cliente_telefono: pedido.clienteTelefono,
+    items: pedido.items,
+    total: pedido.total,
+    cantidad_articulos: pedido.cantidadArticulos,
+  });
 
   if (error) {
     throw error;
   }
-  return data;
+
+  // El cliente solo tiene permiso de INSERT sobre "pedidos" (por RLS),
+  // no de SELECT, así que no se puede pedir de vuelta la fila recién
+  // creada: se arma el mismo dato localmente para el comprobante.
+  return {
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+  };
 }
 
 // ---------------------------------------------------------------------

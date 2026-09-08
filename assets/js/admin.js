@@ -211,13 +211,16 @@ function procesarArchivoExcel(archivo) {
   lector.readAsArrayBuffer(archivo);
 }
 
-// Busca, sin importar mayúsculas/acentos, las columnas Codigo/Precio/Stock
+// Busca, sin importar mayúsculas, las columnas Codigo/SKU/Precio/Stock
 // dentro de una fila del Excel y devuelve { sku, precio, stock_cantidad }.
+// Acepta tanto "Codigo" (planilla de migración inicial) como "SKU"
+// (planilla que exporta el sistema de ventas), para no depender de un
+// único nombre de columna.
 function normalizarFilaExcelPrecios(fila) {
   const claves = Object.keys(fila);
 
   const claveCodigo = claves.find(function (k) {
-    return /codigo/i.test(k);
+    return /codigo|sku/i.test(k);
   });
   const clavePrecio = claves.find(function (k) {
     return /precio/i.test(k);
