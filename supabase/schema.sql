@@ -252,35 +252,51 @@ alter table public.app_config enable row level security;
 alter table public.pedidos enable row level security;
 alter table public.vendedores enable row level security;
 
+-- "create policy" no admite "if not exists": para que el archivo entero
+-- sea seguro de re-ejecutar (ya pasó que una corrida anterior dejó
+-- creadas las de "productos" y volver a correr todo el script rompía
+-- ahí), se borra primero la policy si ya existe.
+drop policy if exists "productos_lectura_publica" on public.productos;
 create policy "productos_lectura_publica" on public.productos
   for select using (true);
+drop policy if exists "productos_escritura_admin" on public.productos;
 create policy "productos_escritura_admin" on public.productos
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
+drop policy if exists "variantes_lectura_publica" on public.variantes;
 create policy "variantes_lectura_publica" on public.variantes
   for select using (true);
+drop policy if exists "variantes_escritura_admin" on public.variantes;
 create policy "variantes_escritura_admin" on public.variantes
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
+drop policy if exists "config_lectura_publica" on public.app_config;
 create policy "config_lectura_publica" on public.app_config
   for select using (true);
+drop policy if exists "config_escritura_admin" on public.app_config;
 create policy "config_escritura_admin" on public.app_config
   for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
+drop policy if exists "pedidos_insert_publico" on public.pedidos;
 create policy "pedidos_insert_publico" on public.pedidos
   for insert with check (true);
+drop policy if exists "pedidos_lectura_admin" on public.pedidos;
 create policy "pedidos_lectura_admin" on public.pedidos
   for select using (auth.role() = 'authenticated');
+drop policy if exists "pedidos_escritura_admin" on public.pedidos;
 create policy "pedidos_escritura_admin" on public.pedidos
   for update using (auth.role() = 'authenticated');
+drop policy if exists "pedidos_borrado_admin" on public.pedidos;
 create policy "pedidos_borrado_admin" on public.pedidos
   for delete using (auth.role() = 'authenticated');
 
 -- Vendedores: son datos internos de la empresa (no hace falta que el
 -- cliente los vea), así que a diferencia del catálogo van sin lectura
 -- pública, solo admin autenticado.
+drop policy if exists "vendedores_lectura_admin" on public.vendedores;
 create policy "vendedores_lectura_admin" on public.vendedores
   for select using (auth.role() = 'authenticated');
+drop policy if exists "vendedores_escritura_admin" on public.vendedores;
 create policy "vendedores_escritura_admin" on public.vendedores
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
@@ -293,11 +309,15 @@ insert into storage.buckets (id, name, public)
 values ('assets-publicos', 'assets-publicos', true)
 on conflict (id) do nothing;
 
+drop policy if exists "assets_lectura_publica" on storage.objects;
 create policy "assets_lectura_publica" on storage.objects
   for select using (bucket_id = 'assets-publicos');
+drop policy if exists "assets_escritura_admin" on storage.objects;
 create policy "assets_escritura_admin" on storage.objects
   for insert with check (bucket_id = 'assets-publicos' and auth.role() = 'authenticated');
+drop policy if exists "assets_actualizacion_admin" on storage.objects;
 create policy "assets_actualizacion_admin" on storage.objects
   for update using (bucket_id = 'assets-publicos' and auth.role() = 'authenticated');
+drop policy if exists "assets_borrado_admin" on storage.objects;
 create policy "assets_borrado_admin" on storage.objects
   for delete using (bucket_id = 'assets-publicos' and auth.role() = 'authenticated');
