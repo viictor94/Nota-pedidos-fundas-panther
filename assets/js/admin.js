@@ -105,6 +105,7 @@ function wireEventosEstaticos() {
   document.getElementById("checkbox-en-promo").addEventListener("change", manejarCambioEnPromo);
   document.getElementById("checkbox-es-nuevo").addEventListener("change", manejarCambioEsNuevo);
   document.getElementById("btn-aplicar-tachado-todas").addEventListener("click", manejarClickAplicarTachadoTodas);
+  document.getElementById("btn-aplicar-precio-actual-todas").addEventListener("click", manejarClickAplicarPrecioActualTodas);
 
   document.getElementById("form-add-vendedor").addEventListener("submit", manejarSubmitAgregarVendedor);
 
@@ -986,6 +987,42 @@ async function guardarPrecioAnteriorVariante(varianteId, valorTexto) {
     mostrarToast("Precio anterior actualizado.", "success");
   } catch (error) {
     mostrarToast("No se pudo guardar el precio anterior.", "error");
+  }
+}
+
+// Botón "aplicar a todas las variantes" del precio actual: carga el
+// mismo monto fijo a TODAS las variantes del producto seleccionado de
+// una sola vez (a diferencia del precio anterior, que se calcula
+// distinto por variante). Pensado para una funda recién creada con
+// muchas variantes, para no tener que escribir el precio una por una
+// mientras se espera la próxima subida del Excel madre; esa subida
+// sigue pisando el precio de cada SKU que traiga, como siempre.
+async function manejarClickAplicarPrecioActualTodas() {
+  if (!productoSeleccionadoId) return;
+
+  const producto = productosAdmin.find(function (p) {
+    return p.id === productoSeleccionadoId;
+  });
+  if (!producto || producto.variantes.length === 0) return;
+
+  const input = document.getElementById("input-precio-actual-masivo");
+  const precio = Number(input.value);
+  if (input.value.trim() === "" || Number.isNaN(precio) || precio < 0) {
+    mostrarToast("Ingresá un precio válido.", "error");
+    return;
+  }
+
+  try {
+    await Promise.all(
+      producto.variantes.map(function (variante) {
+        return actualizarVariante(variante.id, { precio_actual: precio });
+      })
+    );
+    productosAdmin = await obtenerCatalogoCompleto();
+    renderDetalleProducto(productoSeleccionadoId);
+    mostrarToast("Precio aplicado a las " + producto.variantes.length + " variantes.", "success");
+  } catch (error) {
+    mostrarToast("No se pudo aplicar el precio a todas las variantes.", "error");
   }
 }
 

@@ -512,6 +512,18 @@
                 </button>
               </div>
 
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; background: #f0fdf4; border: 1px solid var(--color-primary); border-radius: var(--radius-md); padding: 0.65rem 0.85rem; margin-bottom: 0.5rem; font-size: 0.85rem;">
+                <span>💰 Precio actual: aplicar $</span>
+                <input type="number" id="input-precio-actual-masivo" class="form-input" min="0" step="0.01" placeholder="0" style="width: 110px; padding: 0.35rem 0.5rem;">
+                <span>a</span>
+                <button type="button" id="btn-aplicar-precio-actual-todas" class="btn-primary" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                  todas las variantes
+                </button>
+              </div>
+              <p style="font-size: 0.75rem; color: var(--color-text-light); margin: -0.15rem 0 0.75rem;">
+                Ideal para una funda recién creada con muchas variantes: cargás un precio provisorio para todas de una vez, sin esperar la próxima subida del Excel madre (esa subida sigue pisando el precio de cada SKU que traiga, cuando se suba).
+              </p>
+
               <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-md); padding: 0.65rem 0.85rem; margin-bottom: 0.75rem; font-size: 0.85rem;">
                 <span>💲 Precio anterior (tachado): aplicar</span>
                 <input type="number" id="input-porcentaje-tachado" class="form-input" value="20" min="1" max="300" style="width: 70px; padding: 0.35rem 0.5rem;">
