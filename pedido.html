@@ -25,15 +25,28 @@
     </div>
 
     <div id="pedido-contenido" style="display: none;">
-      <h2 style="color: var(--color-primary); margin-bottom: 0.25rem; text-align: center;">Nota de Pedido</h2>
-      <p id="pedido-fecha" style="text-align: center; font-size: 0.8rem; color: var(--color-text-light); margin-bottom: 1.25rem;"></p>
+      <h2 style="color: var(--color-primary); margin-bottom: 1rem; text-align: center;">Nota de Pedido</h2>
 
-      <div class="cart-summary" style="margin-bottom: 1rem;">
-        <p style="margin: 0 0 0.5rem; font-size: 0.85rem;"><strong>Cliente:</strong> <span id="pedido-cliente-nombre"></span></p>
-        <p style="margin: 0; font-size: 0.85rem;"><strong>Teléfono:</strong> <span id="pedido-cliente-telefono"></span></p>
+      <div class="pedido-info-box">
+        <p><strong>Pedido de:</strong> <span id="pedido-cliente-nombre"></span></p>
+        <p><strong>Teléfono:</strong> <span id="pedido-cliente-telefono"></span></p>
+        <p><strong>Fecha del pedido:</strong> <span id="pedido-fecha"></span></p>
+        <p><strong>Vendedor elegido:</strong> <span id="pedido-vendedor"></span></p>
       </div>
 
-      <div id="pedido-items-container" class="cart-summary"></div>
+      <div style="overflow-x: auto;">
+        <table class="table-pedido">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Descripción</th>
+              <th>Cant.</th>
+              <th>Precio</th>
+            </tr>
+          </thead>
+          <tbody id="pedido-items-table-body"></tbody>
+        </table>
+      </div>
 
       <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem;">
         <button type="button" class="btn-primary" id="btn-compartir-vendedor" style="justify-content: center;">

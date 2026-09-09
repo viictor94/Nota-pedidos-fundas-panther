@@ -539,6 +539,70 @@ a {
   color: var(--color-text-light);
 }
 
+/* ---------- pedido.html: datos del pedido y tabla estilo planilla ---------- */
+.pedido-info-box {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.88rem;
+}
+
+.pedido-info-box p {
+  margin: 0 0 0.35rem;
+}
+
+.pedido-info-box p:last-child {
+  margin-bottom: 0;
+}
+
+.table-pedido {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.table-pedido th,
+.table-pedido td {
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  border: 1px solid var(--color-border);
+}
+
+.table-pedido th {
+  background: #f9fafb;
+  font-weight: 700;
+  color: var(--color-text-light);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Cantidad y precio alineados a la derecha, como en una planilla real. */
+.table-pedido th:nth-child(3),
+.table-pedido th:nth-child(4),
+.table-pedido td:nth-child(3),
+.table-pedido td:nth-child(4) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Fila "encabezado" de cada funda dentro de la tabla: separa
+   visualmente sus variantes del resto, en el verde de marca. */
+.pedido-producto-header td {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+
+.pedido-total-row td {
+  background: #f9fafb;
+  font-weight: 800;
+  border-top: 2px solid var(--color-primary);
+}
+
 .cart-summary {
   display: flex;
   flex-direction: column;

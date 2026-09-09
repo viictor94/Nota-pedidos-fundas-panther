@@ -61,52 +61,90 @@ function renderPedido(pedido) {
   document.getElementById("pedido-fecha").textContent = new Date(pedido.created_at).toLocaleString("es-AR");
   document.getElementById("pedido-cliente-nombre").textContent = pedido.cliente_nombre;
   document.getElementById("pedido-cliente-telefono").textContent = pedido.cliente_telefono;
+  document.getElementById("pedido-vendedor").textContent = pedido.vendedor_nombre || "Sin asignar";
 
-  const contenedor = document.getElementById("pedido-items-container");
-  while (contenedor.firstChild) {
-    contenedor.removeChild(contenedor.firstChild);
+  const cuerpoTabla = document.getElementById("pedido-items-table-body");
+  while (cuerpoTabla.firstChild) {
+    cuerpoTabla.removeChild(cuerpoTabla.firstChild);
   }
 
-  pedido.items.forEach(function (item) {
-    contenedor.appendChild(crearFilaItem(item));
+  // Estilo "planilla": cada funda aparece como una fila de encabezado
+  // (verde de marca) y debajo, una fila por cada variante comprada de
+  // esa funda, para que se pueda revisar el detalle SKU por SKU.
+  agruparItemsPorProducto(pedido.items).forEach(function (grupo) {
+    cuerpoTabla.appendChild(crearFilaGrupoProducto(grupo.nombre));
+    grupo.items.forEach(function (item) {
+      cuerpoTabla.appendChild(crearFilaVariantePedido(item));
+    });
   });
 
-  const totalFila = document.createElement("div");
-  totalFila.className = "cart-summary-total";
-
-  const totalLabel = document.createElement("span");
-  totalLabel.textContent = "Total (" + pedido.cantidad_articulos + " art.)";
-  totalFila.appendChild(totalLabel);
-
-  const totalValor = document.createElement("span");
-  totalValor.textContent = formatearMoneda(pedido.total);
-  totalFila.appendChild(totalValor);
-
-  contenedor.appendChild(totalFila);
+  cuerpoTabla.appendChild(crearFilaTotalPedido(pedido));
 }
 
-function crearFilaItem(item) {
-  const fila = document.createElement("div");
-  fila.className = "cart-summary-item";
+// Agrupa los ítems del pedido por producto (nombre de la funda),
+// conservando el orden en que aparecen, para poder mostrar cada funda
+// como un bloque con sus variantes debajo.
+function agruparItemsPorProducto(items) {
+  const grupos = [];
+  const indicePorNombre = {};
 
-  const info = document.createElement("div");
-  info.className = "cart-summary-item-info";
+  items.forEach(function (item) {
+    if (!(item.productoNombre in indicePorNombre)) {
+      indicePorNombre[item.productoNombre] = grupos.length;
+      grupos.push({ nombre: item.productoNombre, items: [] });
+    }
+    grupos[indicePorNombre[item.productoNombre]].items.push(item);
+  });
 
-  const nombre = document.createElement("span");
-  nombre.className = "cart-summary-item-name";
-  nombre.textContent = item.productoNombre + " (" + item.sku + ")";
-  info.appendChild(nombre);
+  return grupos;
+}
 
-  const modelo = document.createElement("span");
-  modelo.className = "cart-summary-item-model";
-  modelo.textContent = item.modelo + " × " + item.cantidad + " a " + formatearMoneda(item.precioUnitario);
-  info.appendChild(modelo);
+function crearFilaGrupoProducto(nombreProducto) {
+  const fila = document.createElement("tr");
+  fila.className = "pedido-producto-header";
 
-  fila.appendChild(info);
+  const celda = document.createElement("td");
+  celda.colSpan = 4;
+  celda.textContent = nombreProducto;
+  fila.appendChild(celda);
 
-  const subtotal = document.createElement("span");
-  subtotal.textContent = formatearMoneda(item.subtotal);
-  fila.appendChild(subtotal);
+  return fila;
+}
+
+function crearFilaVariantePedido(item) {
+  const fila = document.createElement("tr");
+
+  const celdaSku = document.createElement("td");
+  celdaSku.textContent = item.sku;
+  fila.appendChild(celdaSku);
+
+  const celdaDescripcion = document.createElement("td");
+  celdaDescripcion.textContent = item.modelo;
+  fila.appendChild(celdaDescripcion);
+
+  const celdaCantidad = document.createElement("td");
+  celdaCantidad.textContent = String(item.cantidad);
+  fila.appendChild(celdaCantidad);
+
+  const celdaPrecio = document.createElement("td");
+  celdaPrecio.textContent = formatearMoneda(item.precioUnitario);
+  fila.appendChild(celdaPrecio);
+
+  return fila;
+}
+
+function crearFilaTotalPedido(pedido) {
+  const fila = document.createElement("tr");
+  fila.className = "pedido-total-row";
+
+  const celdaEtiqueta = document.createElement("td");
+  celdaEtiqueta.colSpan = 3;
+  celdaEtiqueta.textContent = "Total (" + pedido.cantidad_articulos + " art.)";
+  fila.appendChild(celdaEtiqueta);
+
+  const celdaTotal = document.createElement("td");
+  celdaTotal.textContent = formatearMoneda(pedido.total);
+  fila.appendChild(celdaTotal);
 
   return fila;
 }

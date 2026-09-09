@@ -245,6 +245,11 @@ $$;
 -- No expone el resto de la tabla: solo devuelve la fila cuyo id exacto
 -- se pasa por parámetro (funciona como token de acceso, ya que el uuid
 -- no es adivinable), nunca una lista.
+-- "create or replace function" no permite cambiar las columnas de un
+-- "returns table" ya existente (falla con "cannot change return type");
+-- como se le suma "vendedor_nombre", hay que borrarla primero.
+drop function if exists public.obtener_pedido_publico(uuid);
+
 create or replace function public.obtener_pedido_publico(p_id uuid)
 returns table (
   cliente_nombre     text,
@@ -252,15 +257,17 @@ returns table (
   items              jsonb,
   total              numeric,
   cantidad_articulos integer,
-  created_at         timestamptz
+  created_at         timestamptz,
+  vendedor_nombre    text
 )
 language sql
 security definer
 set search_path = public
 as $$
-  select cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at
-  from public.pedidos
-  where id = p_id;
+  select p.cliente_nombre, p.cliente_telefono, p.items, p.total, p.cantidad_articulos, p.created_at, v.nombre_completo
+  from public.pedidos p
+  left join public.vendedores v on v.id = p.vendedor_id
+  where p.id = p_id;
 $$;
 
 revoke all on function public.obtener_pedido_publico(uuid) from public;
