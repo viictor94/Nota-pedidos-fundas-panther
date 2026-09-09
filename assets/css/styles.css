@@ -712,7 +712,8 @@ a {
 
   .table-pedido th,
   .table-pedido td {
-    padding: 0.25rem 0.4rem;
+    padding: 0.2rem 0.35rem;
+    line-height: 1.2;
   }
 
   .table-pedido tr {
