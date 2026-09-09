@@ -38,15 +38,25 @@
     <!-- Sección de Catálogo -->
     <section id="catalog-section" class="catalog-section active">
 
-      <!-- Carruseles de destacados (solo se muestran si hay productos marcados) -->
-      <div id="carousel-nuevos-wrap" class="carousel-wrap" style="display: none;">
-        <h2 class="carousel-title">🆕 Nuevos Ingresos</h2>
-        <div id="carousel-nuevos" class="carousel-track"></div>
-      </div>
-
+      <!-- Carruseles 3D de destacados (solo se muestran si hay productos
+           marcados). Se puede tocar la tarjeta de un costado para
+           traerla al frente, o usar las flechas ‹ ›. -->
       <div id="carousel-promos-wrap" class="carousel-wrap" style="display: none;">
         <h2 class="carousel-title">🔥 Promos del Día</h2>
-        <div id="carousel-promos" class="carousel-track"></div>
+        <div class="coverflow-viewport">
+          <button type="button" id="arrow-left-promos" class="coverflow-arrow" aria-label="Promo anterior">‹</button>
+          <div id="carousel-promos" class="coverflow-track"></div>
+          <button type="button" id="arrow-right-promos" class="coverflow-arrow" aria-label="Promo siguiente">›</button>
+        </div>
+      </div>
+
+      <div id="carousel-nuevos-wrap" class="carousel-wrap" style="display: none;">
+        <h2 class="carousel-title">🆕 Nuevos Ingresos</h2>
+        <div class="coverflow-viewport">
+          <button type="button" id="arrow-left-nuevos" class="coverflow-arrow" aria-label="Nuevo anterior">‹</button>
+          <div id="carousel-nuevos" class="coverflow-track"></div>
+          <button type="button" id="arrow-right-nuevos" class="coverflow-arrow" aria-label="Nuevo siguiente">›</button>
+        </div>
       </div>
 
       <h2 class="catalog-full-title">Catálogo Completo</h2>

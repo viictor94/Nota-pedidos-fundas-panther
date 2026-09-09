@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   try {
     const [catalogo, config] = await Promise.all([obtenerCatalogo(), obtenerConfig()]);
-    catalogoCompleto = ordenarConPromosPrimero(catalogo);
+    catalogoCompleto = ordenarDestacadosPrimero(catalogo);
     configuracionApp = config;
     actualizarTextoUltimaActualizacion(config.catalogo_actualizado_en);
     renderCatalogo();
@@ -55,7 +55,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     suscribirCambiosCatalogo(async function () {
       try {
         const [catalogo, config] = await Promise.all([obtenerCatalogo(), obtenerConfig()]);
-        catalogoCompleto = ordenarConPromosPrimero(catalogo);
+        catalogoCompleto = ordenarDestacadosPrimero(catalogo);
         configuracionApp = config;
         actualizarTextoUltimaActualizacion(config.catalogo_actualizado_en);
         renderCatalogo();
@@ -68,13 +68,32 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 });
 
-// Los productos marcados "en_promo" desde el admin se muestran primero,
-// para potenciar su venta; dentro de cada grupo se conserva el orden
-// que ya trae la consulta (por "orden" y luego nombre).
-function ordenarConPromosPrimero(catalogo) {
+// Los productos marcados "en_promo" o "es_nuevo" desde el admin se
+// muestran primero en el Catálogo Completo (promo antes que nuevo),
+// para potenciar su venta; ninguno se excluye de la grilla, solo se
+// reordena. Dentro de cada grupo se conserva el orden que ya trae la
+// consulta (por "orden" y luego nombre).
+function ordenarDestacadosPrimero(catalogo) {
+  function puntaje(producto) {
+    if (producto.en_promo) return 2;
+    if (producto.es_nuevo) return 1;
+    return 0;
+  }
   return catalogo.slice().sort(function (a, b) {
-    return (b.en_promo ? 1 : 0) - (a.en_promo ? 1 : 0);
+    return puntaje(b) - puntaje(a);
   });
+}
+
+// Precio "tachado" (viejo) que se muestra junto al precio actual para
+// dar sensación de descuento: no sale de datos reales, se calcula
+// como un porcentaje por encima del precio actual. Los productos
+// "es_nuevo" no llevan precio tachado (recién llegan, no hay "antes").
+function calcularPrecioTachado(precioActual, producto) {
+  if (producto.es_nuevo) {
+    return null;
+  }
+  const factor = producto.en_promo ? 1.35 : 1.2;
+  return precioActual * factor;
 }
 
 function formatearMoneda(numero) {
@@ -109,6 +128,7 @@ function wireEventosEstaticos() {
   document.getElementById("btn-terminar-pedido").addEventListener("click", mostrarCheckout);
   document.getElementById("btn-back-catalog").addEventListener("click", volverAlCatalogo);
   configurarScrollInfinito();
+  configurarCarruseles();
 
   document.getElementById("btn-close-modal").addEventListener("click", cerrarModalVariantes);
   document.getElementById("btn-modal-listo").addEventListener("click", cerrarModalVariantes);
@@ -175,33 +195,63 @@ function cargarMasProductos() {
   renderCatalogo();
 }
 
-// Arma los carruseles horizontales de "Nuevos Ingresos" y "Promos del
-// Día" a partir de los carteles que tilda el admin; cada uno se oculta
-// si no hay ningún producto marcado.
+// Estado de cada carrusel 3D (coverflow): qué producto está al frente
+// (activo) y referencia a su track en el DOM. "productos" se actualiza
+// en cada render para que las flechas y los clicks sepan hasta dónde
+// pueden moverse.
+const estadoCoverflowPromos = { activo: 0, productos: [], track: null };
+const estadoCoverflowNuevos = { activo: 0, productos: [], track: null };
+
+// Cachea el track de cada carrusel y conecta las flechas ‹ › que
+// mueven manualmente cuál producto queda al frente.
+function configurarCarruseles() {
+  estadoCoverflowPromos.track = document.getElementById("carousel-promos");
+  estadoCoverflowNuevos.track = document.getElementById("carousel-nuevos");
+
+  document.getElementById("arrow-left-promos").addEventListener("click", function () {
+    moverCoverflow(estadoCoverflowPromos, -1);
+  });
+  document.getElementById("arrow-right-promos").addEventListener("click", function () {
+    moverCoverflow(estadoCoverflowPromos, 1);
+  });
+  document.getElementById("arrow-left-nuevos").addEventListener("click", function () {
+    moverCoverflow(estadoCoverflowNuevos, -1);
+  });
+  document.getElementById("arrow-right-nuevos").addEventListener("click", function () {
+    moverCoverflow(estadoCoverflowNuevos, 1);
+  });
+}
+
+// Arma los carruseles "Promos del Día" y "Nuevos Ingresos" a partir de
+// los carteles que tilda el admin; cada uno se oculta si no hay ningún
+// producto marcado. Ninguno se saca de la grilla de abajo: ver
+// ordenarDestacadosPrimero.
 function renderCarruseles() {
-  renderUnCarrusel(
-    "carousel-nuevos",
-    "carousel-nuevos-wrap",
-    catalogoCompleto.filter(function (p) {
-      return p.es_nuevo;
-    })
-  );
-  renderUnCarrusel(
-    "carousel-promos",
+  renderCoverflow(
     "carousel-promos-wrap",
+    estadoCoverflowPromos,
     catalogoCompleto.filter(function (p) {
       return p.en_promo;
     })
   );
+  renderCoverflow(
+    "carousel-nuevos-wrap",
+    estadoCoverflowNuevos,
+    catalogoCompleto.filter(function (p) {
+      return p.es_nuevo;
+    })
+  );
 }
 
-function renderUnCarrusel(idTrack, idWrap, productos) {
+function renderCoverflow(idWrap, estado, productos) {
   const wrap = document.getElementById(idWrap);
-  const track = document.getElementById(idTrack);
+  const track = estado.track;
 
   while (track.firstChild) {
     track.removeChild(track.firstChild);
   }
+
+  estado.productos = productos;
 
   if (productos.length === 0) {
     wrap.style.display = "none";
@@ -209,13 +259,80 @@ function renderUnCarrusel(idTrack, idWrap, productos) {
   }
 
   wrap.style.display = "block";
-  productos.forEach(function (producto) {
-    const tarjeta = crearTarjetaProducto(producto);
-    track.appendChild(tarjeta);
+  if (estado.activo >= productos.length) {
+    estado.activo = productos.length - 1;
+  }
+
+  productos.forEach(function (producto, indice) {
+    track.appendChild(crearTarjetaCoverflow(producto, indice, estado));
   });
+
+  actualizarPosicionesCoverflow(estado);
+}
+
+// Mueve manualmente el carrusel (flechas ‹ ›), sin pasarse de los
+// extremos.
+function moverCoverflow(estado, delta) {
+  if (estado.productos.length === 0) return;
+  estado.activo = Math.max(0, Math.min(estado.productos.length - 1, estado.activo + delta));
+  actualizarPosicionesCoverflow(estado);
+}
+
+// Acomoda cada tarjeta según su distancia a la que está "al frente":
+// la activa queda grande y de frente, las de los costados más chicas,
+// tenues e inclinadas (efecto 3D tipo coverflow). Se calcula todo acá
+// (no con CSS puro) porque la posición depende de cuál está activa,
+// algo que cambia con cada click/flecha.
+function actualizarPosicionesCoverflow(estado) {
+  const tarjetas = estado.track.children;
+
+  for (let i = 0; i < tarjetas.length; i++) {
+    const offset = i - estado.activo;
+    const distancia = Math.abs(offset);
+    const tarjeta = tarjetas[i];
+
+    const traslado = offset * 78;
+    const escala = offset === 0 ? 1 : Math.max(0.6, 1 - distancia * 0.16);
+    const rotacion = offset === 0 ? 0 : offset > 0 ? -20 : 20;
+    const opacidad = distancia === 0 ? 1 : distancia === 1 ? 0.75 : distancia === 2 ? 0.4 : 0;
+
+    tarjeta.style.transform =
+      "translate(-50%, -50%) translateX(" + traslado + "px) scale(" + escala + ") rotateY(" + rotacion + "deg)";
+    tarjeta.style.opacity = String(opacidad);
+    tarjeta.style.zIndex = String(100 - distancia);
+    tarjeta.style.pointerEvents = distancia <= 2 ? "auto" : "none";
+  }
+}
+
+// Tarjeta del carrusel 3D: si ya está al frente, tocarla abre el
+// modal de variantes (como en la grilla); si está a un costado, el
+// click la trae al frente en vez de abrir el modal.
+function crearTarjetaCoverflow(producto, indice, estado) {
+  const tarjeta = construirTarjetaBase(producto);
+  tarjeta.addEventListener("click", function () {
+    if (estado.activo === indice) {
+      abrirModalVariantes(producto);
+    } else {
+      estado.activo = indice;
+      actualizarPosicionesCoverflow(estado);
+    }
+  });
+  return tarjeta;
 }
 
 function crearTarjetaProducto(producto) {
+  const tarjeta = construirTarjetaBase(producto);
+  tarjeta.addEventListener("click", function () {
+    abrirModalVariantes(producto);
+  });
+  return tarjeta;
+}
+
+// Arma el DOM de una tarjeta de producto (foto, carteles, nombre,
+// precios), sin el listener de click: crearTarjetaProducto (grilla) y
+// crearTarjetaCoverflow (carruseles) le agregan cada uno el suyo,
+// porque el click hace cosas distintas en cada contexto.
+function construirTarjetaBase(producto) {
   const precioMasBarato = Math.min.apply(
     null,
     producto.variantes.map(function (v) {
@@ -257,21 +374,29 @@ function crearTarjetaProducto(producto) {
   nombre.textContent = producto.nombre;
   cuerpo.appendChild(nombre);
 
+  const bloquePrecio = document.createElement("div");
+  bloquePrecio.className = "product-card-price-block";
+
   const labelDesde = document.createElement("span");
   labelDesde.className = "product-card-price-label";
   labelDesde.textContent = "Desde";
-  cuerpo.appendChild(labelDesde);
+  bloquePrecio.appendChild(labelDesde);
+
+  const precioTachado = calcularPrecioTachado(precioMasBarato, producto);
+  if (precioTachado !== null) {
+    const viejo = document.createElement("span");
+    viejo.className = "product-card-price-old";
+    viejo.textContent = formatearMoneda(precioTachado);
+    bloquePrecio.appendChild(viejo);
+  }
 
   const precio = document.createElement("p");
   precio.className = "product-card-price";
   precio.textContent = formatearMoneda(precioMasBarato);
-  cuerpo.appendChild(precio);
+  bloquePrecio.appendChild(precio);
 
+  cuerpo.appendChild(bloquePrecio);
   tarjeta.appendChild(cuerpo);
-
-  tarjeta.addEventListener("click", function () {
-    abrirModalVariantes(producto);
-  });
 
   return tarjeta;
 }
@@ -313,10 +438,23 @@ function crearFilaVariante(producto, variante) {
   modelo.textContent = variante.modelo;
   info.appendChild(modelo);
 
+  const filaPrecio = document.createElement("div");
+  filaPrecio.className = "variant-item-price-row";
+
+  const precioTachado = calcularPrecioTachado(variante.precio_actual, producto);
+  if (precioTachado !== null) {
+    const viejo = document.createElement("span");
+    viejo.className = "variant-item-price-old";
+    viejo.textContent = formatearMoneda(precioTachado);
+    filaPrecio.appendChild(viejo);
+  }
+
   const precio = document.createElement("span");
   precio.className = "variant-item-price";
   precio.textContent = formatearMoneda(variante.precio_actual);
-  info.appendChild(precio);
+  filaPrecio.appendChild(precio);
+
+  info.appendChild(filaPrecio);
 
   const stockBadge = document.createElement("span");
   stockBadge.className = "variant-item-stock stock-badge " + claseCssStock(variante.stock_estado);

@@ -166,21 +166,61 @@ a {
   margin: 0 0 0.65rem;
 }
 
-.carousel-track {
+/* Fila con las flechas ‹ › a los costados y el track 3D en el medio. */
+.coverflow-viewport {
   display: flex;
-  gap: 0.85rem;
-  overflow-x: auto;
-  padding-bottom: 0.35rem;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-/* Las tarjetas del carrusel son las mismas .product-card (mismo look,
-   mismos carteles), solo con ancho fijo para poder desplazarse. */
-.carousel-track .product-card {
+/* Las tarjetas son las mismas .product-card (mismo look, mismos
+   carteles); acá quedan posicionadas de forma absoluta porque su
+   lugar (centro/costado, grande/chica) lo calcula app.js según cuál
+   está "al frente" (ver actualizarPosicionesCoverflow). */
+.coverflow-track {
+  position: relative;
+  flex: 1;
+  height: 275px;
+  overflow: hidden;
+  perspective: 900px;
+}
+
+.coverflow-track .product-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 145px;
+  cursor: pointer;
+}
+
+/* El transform lo pisa JS en cada momento (según qué tan lejos está
+   del centro, ver actualizarPosicionesCoverflow); acá solo se anima
+   la transición entre un valor y el siguiente. Al ser estilo inline,
+   esto también gana sobre el transform de .product-card:hover, así
+   que no compiten entre sí. */
+.coverflow-track .product-card {
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+
+.coverflow-arrow {
   flex: 0 0 auto;
-  width: 150px;
-  scroll-snap-align: start;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  background: #fff;
+  color: var(--color-primary);
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.coverflow-arrow:hover {
+  background: var(--color-primary-light);
 }
 
 .catalog-full-title {
@@ -283,17 +323,34 @@ a {
   margin: 0;
 }
 
+/* Bloque de precio de la tarjeta: centrado (label, tachado y precio
+   actual), a diferencia del nombre que queda alineado a la izquierda. */
+.product-card-price-block {
+  text-align: center;
+  margin-top: auto;
+}
+
 .product-card-price {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   font-weight: 800;
   color: var(--color-primary);
   margin: 0;
 }
 
 .product-card-price-label {
+  display: block;
   font-size: 0.7rem;
   font-weight: 500;
   color: var(--color-text-light);
+}
+
+/* Precio "de antes" tachado (ver calcularPrecioTachado en app.js). */
+.product-card-price-old {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-light);
+  text-decoration: line-through;
 }
 
 /* ---------- Checkout ---------- */
@@ -544,10 +601,23 @@ a {
   font-size: 0.88rem;
 }
 
+.variant-item-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
 .variant-item-price {
   color: var(--color-primary);
   font-weight: 800;
   font-size: 0.9rem;
+}
+
+.variant-item-price-old {
+  color: var(--color-text-light);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-decoration: line-through;
 }
 
 .variant-item-stock {
@@ -585,8 +655,12 @@ a {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .carousel-track .product-card {
-    width: 190px;
+  .coverflow-track {
+    height: 320px;
+  }
+
+  .coverflow-track .product-card {
+    width: 180px;
   }
 }
 
