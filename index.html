@@ -8,6 +8,14 @@
 </head>
 <body>
 
+  <!-- Pantalla de carga inicial: se oculta apenas responde Supabase
+       (catálogo + config). Sin esto, en una conexión lenta la página se
+       ve en blanco y parece que no está pasando nada. -->
+  <div id="app-loading-overlay" class="app-loading-overlay">
+    <div class="spinner spinner-lg"></div>
+    <p>Cargando catálogo...</p>
+  </div>
+
   <header style="background: white; border-bottom: 1.5px solid rgba(62, 134, 60, 0.15); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04); padding: 0.85rem 1.25rem;">
     <div style="max-width: 1200px; margin: 0 auto;">
 
@@ -163,6 +171,58 @@
         Se abrió WhatsApp con el link de tu pedido ya escrito en el mensaje.
       </p>
       <button id="btn-close-success" class="btn-secondary" style="margin-top: 1.25rem; width: auto; padding: 0.5rem 2rem; font-size: 0.875rem;">Volver al Catálogo</button>
+    </div>
+  </div>
+
+  <!-- Modal de Bienvenida: se muestra una sola vez (primera visita) para
+       guardar los datos del cliente y completarlos solo automáticamente
+       en los pedidos siguientes. -->
+  <div id="welcome-modal" class="modal-overlay">
+    <div class="modal-content welcome-modal-content">
+
+      <div id="welcome-step-inicial" class="welcome-step">
+        <h3 class="welcome-title">¡Bienvenido a Panther Distribuciones!</h3>
+        <p class="welcome-subtitle">Contanos quién sos para completarte los datos más rápido la próxima vez.</p>
+        <div class="welcome-options">
+          <button type="button" id="btn-welcome-existente" class="btn-primary" style="justify-content: center;">Ya soy cliente</button>
+          <button type="button" id="btn-welcome-nuevo" class="btn-secondary" style="justify-content: center;">Quiero hacer mi primera compra</button>
+        </div>
+      </div>
+
+      <form id="welcome-form-existente" class="welcome-step welcome-form" hidden>
+        <button type="button" class="welcome-back" data-volver>‹ Volver</button>
+        <div class="form-group">
+          <label class="form-label" for="welcome-existente-nombre">Nombre Completo *</label>
+          <input type="text" id="welcome-existente-nombre" class="form-input" required autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="welcome-existente-telefono">Teléfono *</label>
+          <input type="tel" id="welcome-existente-telefono" class="form-input" required autocomplete="tel">
+        </div>
+        <button type="submit" class="btn-primary" style="justify-content: center;">Continuar</button>
+      </form>
+
+      <form id="welcome-form-nuevo" class="welcome-step welcome-form" hidden>
+        <button type="button" class="welcome-back" data-volver>‹ Volver</button>
+        <div class="form-group">
+          <label class="form-label" for="welcome-nuevo-nombre">Nombre Completo *</label>
+          <input type="text" id="welcome-nuevo-nombre" class="form-input" required autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="welcome-nuevo-telefono">Teléfono *</label>
+          <input type="tel" id="welcome-nuevo-telefono" class="form-input" required autocomplete="tel">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="welcome-nuevo-provincia">Provincia *</label>
+          <input type="text" id="welcome-nuevo-provincia" class="form-input" required autocomplete="address-level1">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="welcome-nuevo-local">Nombre del local comercial (si tenés)</label>
+          <input type="text" id="welcome-nuevo-local" class="form-input">
+        </div>
+        <button type="submit" class="btn-primary" style="justify-content: center;">Continuar</button>
+      </form>
+
     </div>
   </div>
 

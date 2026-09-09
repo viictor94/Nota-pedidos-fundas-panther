@@ -45,6 +45,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     renderCatalogo();
   } catch (error) {
     mostrarErrorCatalogo();
+  } finally {
+    ocultarPantallaCarga();
   }
 
   // Mantiene el catálogo al día si el admin cambia algo mientras el
@@ -119,6 +121,15 @@ function actualizarTextoUltimaActualizacion(fechaIso) {
   texto.textContent = fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+// Se llama una sola vez (éxito o error) apenas responde Supabase, para
+// no dejar al cliente mirando una pantalla en blanco mientras carga.
+function ocultarPantallaCarga() {
+  const overlay = document.getElementById("app-loading-overlay");
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
 function mostrarErrorCatalogo() {
   const grid = document.getElementById("catalog-grid");
   if (!grid) return;
@@ -152,6 +163,8 @@ function wireEventosEstaticos() {
     ocultarModal(document.getElementById("success-modal"));
     reiniciarDespuesDePedido();
   });
+
+  configurarBienvenida();
 }
 
 // ---------------------------------------------------------------------
@@ -172,12 +185,35 @@ function renderCatalogo() {
   });
 
   const restantes = catalogoCompleto.length - visibles.length;
-  const estado = document.getElementById("catalog-load-status");
   if (restantes > 0) {
-    estado.textContent = "";
+    mostrarMensajeCarga("Deslizá hacia abajo para ver más fundas ↓");
   } else {
-    estado.textContent = catalogoCompleto.length > 0 ? "Viste todo el catálogo ✓" : "";
+    mostrarMensajeCarga(catalogoCompleto.length > 0 ? "Viste todo el catálogo ✓" : "");
   }
+}
+
+// Reemplaza el contenido del cartel al pie de la grilla por texto
+// simple (hay más para ver / se vio todo el catálogo).
+function mostrarMensajeCarga(texto) {
+  const estado = document.getElementById("catalog-load-status");
+  while (estado.firstChild) {
+    estado.removeChild(estado.firstChild);
+  }
+  estado.appendChild(document.createTextNode(texto));
+}
+
+// Mientras se preparan más productos se muestra un spinner: sin este
+// cartel, al llegar al final del scroll no hay ninguna señal de que
+// falten más fundas por ver (parece que el catálogo ya terminó).
+function mostrarSpinnerCarga() {
+  const estado = document.getElementById("catalog-load-status");
+  while (estado.firstChild) {
+    estado.removeChild(estado.firstChild);
+  }
+  const spinner = document.createElement("span");
+  spinner.className = "spinner spinner-inline";
+  estado.appendChild(spinner);
+  estado.appendChild(document.createTextNode("Cargando más fundas..."));
 }
 
 // Scroll infinito: en vez de un botón "Cargar más", se observa un
@@ -194,23 +230,36 @@ function configurarScrollInfinito() {
   observador.observe(sentinela);
 }
 
+let cargandoMasProductos = false;
+
 function cargarMasProductos() {
-  if (productosVisibles >= catalogoCompleto.length) {
+  if (cargandoMasProductos || productosVisibles >= catalogoCompleto.length) {
     return;
   }
-  productosVisibles += INCREMENTO_SCROLL;
-  renderCatalogo();
+  cargandoMasProductos = true;
+  mostrarSpinnerCarga();
+  // Demora artificial breve: los productos ya están en memoria (no hay
+  // pedido real a Supabase), pero sin esta pausa el cambio es
+  // instantáneo y el spinner ni llega a verse.
+  setTimeout(function () {
+    productosVisibles += INCREMENTO_SCROLL;
+    cargandoMasProductos = false;
+    renderCatalogo();
+  }, 350);
 }
 
 // Estado de cada carrusel 3D (coverflow): qué producto está al frente
 // (activo) y referencia a su track en el DOM. "productos" se actualiza
 // en cada render para que las flechas y los clicks sepan hasta dónde
 // pueden moverse.
-const estadoCoverflowPromos = { activo: 0, productos: [], track: null };
-const estadoCoverflowNuevos = { activo: 0, productos: [], track: null };
+// "centrado" marca si ya se hizo el posicionamiento inicial en la
+// tarjeta del medio (ver renderCoverflow): solo pasa una vez, después
+// el activo lo maneja el cliente (flechas, swipe o click).
+const estadoCoverflowPromos = { activo: 0, productos: [], track: null, centrado: false };
+const estadoCoverflowNuevos = { activo: 0, productos: [], track: null, centrado: false };
 
-// Cachea el track de cada carrusel y conecta las flechas ‹ › que
-// mueven manualmente cuál producto queda al frente.
+// Cachea el track de cada carrusel y conecta las flechas ‹ › y el
+// swipe táctil que mueven manualmente cuál producto queda al frente.
 function configurarCarruseles() {
   estadoCoverflowPromos.track = document.getElementById("carousel-promos");
   estadoCoverflowNuevos.track = document.getElementById("carousel-nuevos");
@@ -226,6 +275,59 @@ function configurarCarruseles() {
   });
   document.getElementById("arrow-right-nuevos").addEventListener("click", function () {
     moverCoverflow(estadoCoverflowNuevos, 1);
+  });
+
+  agregarSoporteSwipe(estadoCoverflowPromos.track, estadoCoverflowPromos);
+  agregarSoporteSwipe(estadoCoverflowNuevos.track, estadoCoverflowNuevos);
+}
+
+// Navegación por gesto táctil: deslizar el dedo hacia la izquierda
+// avanza a la siguiente tarjeta, hacia la derecha retrocede. Es la
+// forma principal de navegar en celular (las flechas quedan como
+// alternativa). Si el gesto es más horizontal que vertical se frena el
+// scroll de la página mientras dura, para que no compitan entre sí.
+function agregarSoporteSwipe(elemento, estado) {
+  let inicioX = 0;
+  let inicioY = 0;
+  let enCurso = false;
+
+  elemento.addEventListener(
+    "touchstart",
+    function (evento) {
+      const toque = evento.touches[0];
+      inicioX = toque.clientX;
+      inicioY = toque.clientY;
+      enCurso = true;
+    },
+    { passive: true }
+  );
+
+  elemento.addEventListener(
+    "touchmove",
+    function (evento) {
+      if (!enCurso) return;
+      const toque = evento.touches[0];
+      const deltaX = toque.clientX - inicioX;
+      const deltaY = toque.clientY - inicioY;
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        evento.preventDefault();
+      }
+    },
+    { passive: false }
+  );
+
+  elemento.addEventListener("touchend", function (evento) {
+    if (!enCurso) return;
+    enCurso = false;
+
+    const toque = evento.changedTouches[0];
+    const deltaX = toque.clientX - inicioX;
+    const deltaY = toque.clientY - inicioY;
+    const UMBRAL_PX = 35;
+
+    if (Math.abs(deltaX) > UMBRAL_PX && Math.abs(deltaX) > Math.abs(deltaY)) {
+      moverCoverflow(estado, deltaX < 0 ? 1 : -1);
+    }
   });
 }
 
@@ -256,6 +358,15 @@ function renderCoverflow(idWrap, estado, productos) {
 
   while (track.firstChild) {
     track.removeChild(track.firstChild);
+  }
+
+  // La primera vez que este carrusel recibe productos arranca centrado
+  // en el del medio del set (no en el primero), para que el cliente
+  // pueda elegir deslizar hacia cualquiera de los dos lados en vez de
+  // quedar pegado contra el borde izquierdo.
+  if (!estado.centrado && productos.length > 0) {
+    estado.activo = Math.floor((productos.length - 1) / 2);
+    estado.centrado = true;
   }
 
   estado.productos = productos;
@@ -615,6 +726,9 @@ function mostrarCheckout() {
   // duplicar la acción en pantalla.
   document.getElementById("sticky-cart").classList.remove("visible");
   renderResumenCarrito();
+  // Sin esto la vista queda donde estaba scrolleada en el catálogo (a
+  // veces bien abajo), y el checkout parece arrancar "cortado".
+  window.scrollTo(0, 0);
 }
 
 function volverAlCatalogo() {
@@ -789,12 +903,24 @@ function mostrarAvisoStock(mensaje) {
 // vendedora entra al link y ve el detalle completo del pedido.
 function construirTextoWhatsapp(pedido) {
   const url = window.location.origin + window.location.pathname.replace(/index\.html$/, "") + "pedido.html?id=" + pedido.id;
+
+  // Si es cliente nuevo (dato cargado en el modal de bienvenida), se
+  // suma provincia/local: no se guarda en la tabla "pedidos", así que
+  // este mensaje es la única forma en que le llega a la vendedora.
+  const clienteGuardado = obtenerClienteGuardado();
+  let datosExtra = "";
+  if (clienteGuardado && clienteGuardado.tipo === "nuevo") {
+    datosExtra = " Soy cliente nuevo, provincia: " + clienteGuardado.provincia + (clienteGuardado.local ? ", local: " + clienteGuardado.local : "") + ".";
+  }
+
   return (
     "Hola! Armé mi pedido por la web de fundas. Te dejo mis datos: nombre: " +
     pedido.clienteNombre +
     ", teléfono: " +
     pedido.clienteTelefono +
-    ". Aguardo así me confirmás stock y abono el total. Podés ver el detalle acá: " +
+    "." +
+    datosExtra +
+    " Aguardo así me confirmás stock y abono el total. Podés ver el detalle acá: " +
     url
   );
 }
@@ -832,6 +958,9 @@ function reiniciarDespuesDePedido() {
   carrito = {};
   ultimoPedido = null;
   document.getElementById("checkout-form").reset();
+  // El reset() del form vacía nombre/teléfono; se vuelven a completar
+  // para el próximo pedido del mismo cliente.
+  prefillCheckoutConCliente(obtenerClienteGuardado());
   const aviso = document.getElementById("stock-warning-box");
   if (aviso) {
     aviso.style.display = "none";
@@ -842,6 +971,95 @@ function reiniciarDespuesDePedido() {
   }
   actualizarUiCarrito();
   volverAlCatalogo();
+}
+
+// ---------------------------------------------------------------------
+// Bienvenida y datos del cliente
+// ---------------------------------------------------------------------
+
+// Se guarda en el navegador (no en Supabase) para no depender de una
+// cuenta de cliente: solo sirve para no pedirle los mismos datos cada
+// vez que entra desde el mismo celular.
+const CLIENTE_STORAGE_KEY = "panther_cliente_info";
+
+function obtenerClienteGuardado() {
+  try {
+    const crudo = localStorage.getItem(CLIENTE_STORAGE_KEY);
+    return crudo ? JSON.parse(crudo) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function prefillCheckoutConCliente(datos) {
+  if (!datos) return;
+  document.getElementById("customer-name").value = datos.nombre || "";
+  document.getElementById("customer-phone").value = datos.telefono || "";
+}
+
+function guardarClienteYPrefill(datos) {
+  try {
+    localStorage.setItem(CLIENTE_STORAGE_KEY, JSON.stringify(datos));
+  } catch (error) {
+    // localStorage puede fallar (modo privado, cuota llena); no debe
+    // frenar el flujo de compra por eso.
+  }
+  prefillCheckoutConCliente(datos);
+}
+
+// Muestra un único paso del modal de bienvenida (los demás quedan
+// ocultos con el atributo "hidden").
+function mostrarPasoBienvenida(idPasoVisible) {
+  document.querySelectorAll(".welcome-step").forEach(function (paso) {
+    paso.hidden = paso.id !== idPasoVisible;
+  });
+}
+
+// Si ya hay datos guardados de una visita anterior, se pre-completa el
+// checkout directo y no se vuelve a preguntar. Si es la primera vez,
+// se muestra el modal de bienvenida para pedirlos.
+function configurarBienvenida() {
+  const clienteGuardado = obtenerClienteGuardado();
+  if (clienteGuardado) {
+    prefillCheckoutConCliente(clienteGuardado);
+    return;
+  }
+
+  mostrarModal(document.getElementById("welcome-modal"));
+
+  document.getElementById("btn-welcome-existente").addEventListener("click", function () {
+    mostrarPasoBienvenida("welcome-form-existente");
+  });
+  document.getElementById("btn-welcome-nuevo").addEventListener("click", function () {
+    mostrarPasoBienvenida("welcome-form-nuevo");
+  });
+  document.querySelectorAll(".welcome-back").forEach(function (boton) {
+    boton.addEventListener("click", function () {
+      mostrarPasoBienvenida("welcome-step-inicial");
+    });
+  });
+
+  document.getElementById("welcome-form-existente").addEventListener("submit", function (evento) {
+    evento.preventDefault();
+    guardarClienteYPrefill({
+      tipo: "existente",
+      nombre: document.getElementById("welcome-existente-nombre").value.trim(),
+      telefono: document.getElementById("welcome-existente-telefono").value.trim(),
+    });
+    ocultarModal(document.getElementById("welcome-modal"));
+  });
+
+  document.getElementById("welcome-form-nuevo").addEventListener("submit", function (evento) {
+    evento.preventDefault();
+    guardarClienteYPrefill({
+      tipo: "nuevo",
+      nombre: document.getElementById("welcome-nuevo-nombre").value.trim(),
+      telefono: document.getElementById("welcome-nuevo-telefono").value.trim(),
+      provincia: document.getElementById("welcome-nuevo-provincia").value.trim(),
+      local: document.getElementById("welcome-nuevo-local").value.trim(),
+    });
+    ocultarModal(document.getElementById("welcome-modal"));
+  });
 }
 
 // ---------------------------------------------------------------------
