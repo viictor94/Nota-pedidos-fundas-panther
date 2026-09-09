@@ -627,15 +627,101 @@ a {
 
 /* Al imprimir (o "Guardar como PDF") solo interesa el detalle del
    pedido para control físico: se ocultan los botones de acción y los
-   avisos transitorios de pantalla. */
+   avisos transitorios de pantalla, y todo se comprime para que entre
+   en una sola hoja A4. El logo (dentro de <header>) y los datos del
+   pedido (.pedido-info-box, dentro de <main>) no son hermanos en el
+   HTML, así que en vez de reordenarlos con flex/grid se posicionan
+   ambos con position:absolute: sin ningún ancestro con position
+   propia, cada uno queda anclado directamente a la hoja (arriba a la
+   izquierda y arriba a la derecha), sin importar dónde vivan en el DOM. */
 @media print {
+  @page {
+    size: A4;
+    margin: 10mm 12mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    background: #fff;
+    font-size: 11px;
+  }
+
   .pedido-acciones-no-imprimir {
     display: none !important;
   }
 
+  #pedido-contenido > h2 {
+    display: none !important;
+  }
+
+  header {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 45% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  header > div {
+    justify-content: flex-start !important;
+  }
+
+  header img {
+    height: 40px !important;
+    max-height: 40px !important;
+  }
+
+  main.container {
+    max-width: 100% !important;
+    padding: 4.6rem 0 0 !important;
+    margin: 0 !important;
+  }
+
+  .pedido-info-box {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 52% !important;
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 0.72rem !important;
+    line-height: 1.25 !important;
+    text-align: right;
+  }
+
+  .pedido-info-box p {
+    margin: 0 0 0.1rem !important;
+  }
+
+  /* Celdas más chicas y ajustadas para que la planilla ocupe el ancho
+     completo de la hoja sin desperdiciar espacio. */
+  .table-pedido {
+    font-size: 0.72rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .table-pedido th,
+  .table-pedido td {
+    padding: 0.25rem 0.4rem;
+  }
+
+  .table-pedido tr {
+    page-break-inside: avoid;
+  }
+
   .celda-check input[type="checkbox"] {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    width: 0.85rem;
+    height: 0.85rem;
   }
 }
 
