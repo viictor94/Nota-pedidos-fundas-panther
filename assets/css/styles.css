@@ -512,6 +512,12 @@ a {
   border-color: var(--color-primary);
 }
 
+.form-error {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-danger);
+}
+
 .cart-summary {
   display: flex;
   flex-direction: column;

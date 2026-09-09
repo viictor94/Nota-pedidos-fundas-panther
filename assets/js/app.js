@@ -20,6 +20,7 @@ const INCREMENTO_SCROLL = 4; // cuántos se suman cada vez que el scroll llega a
 let catalogoCompleto = []; // Productos con variantes, tal como vienen de Supabase.
 let configuracionApp = { whatsapp_vendedor: "" };
 let productosVisibles = PRODUCTOS_POR_PAGINA;
+let vendedoresDisponibles = []; // Para el desplegable opcional "Vendedor/a preferido/a" del checkout.
 
 // Carrito: mapa varianteId -> { productoId, productoNombre, varianteId, sku, modelo, precioUnitario, cantidad }
 let carrito = {};
@@ -47,6 +48,16 @@ document.addEventListener("DOMContentLoaded", async function () {
     mostrarErrorCatalogo();
   } finally {
     ocultarPantallaCarga();
+  }
+
+  // Aparte del catálogo: si falla (RPC caída, sin red) el checkout debe
+  // seguir funcionando igual, solo que sin la opción de elegir
+  // vendedor/a (queda sin asignar hasta que el admin lo haga a mano).
+  try {
+    vendedoresDisponibles = await obtenerVendedoresPublico();
+    renderSelectVendedores();
+  } catch (error) {
+    // Ver comentario de arriba: no es un error que deba frenar la compra.
   }
 
   // Mantiene el catálogo al día si el admin cambia algo mientras el
@@ -112,6 +123,49 @@ function formatearMoneda(numero) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(Number(numero));
+}
+
+// Llena el desplegable opcional del checkout con los vendedores activos
+// (id/nombre/provincia, vía la RPC pública obtener_vendedores_publico).
+// Conserva la primera opción ("Sin preferencia...") que ya trae el HTML.
+function renderSelectVendedores() {
+  const select = document.getElementById("customer-vendedor");
+  if (!select) return;
+
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+
+  vendedoresDisponibles.forEach(function (vendedor) {
+    const opcion = document.createElement("option");
+    opcion.value = vendedor.id;
+    opcion.textContent = vendedor.nombre_completo + " (" + vendedor.provincia + ")";
+    select.appendChild(opcion);
+  });
+}
+
+// Valida que el teléfono tenga una cantidad de dígitos razonable para
+// un número argentino (sin exigir un formato exacto, porque la gente lo
+// escribe con espacios, guiones o +54 de formas muy distintas). Antes
+// no había ningún control y se podía cargar, por ejemplo, un número de
+// 25 dígitos sin que nada lo impidiera.
+function telefonoEsValido(texto) {
+  const soloDigitos = (texto || "").replace(/\D/g, "");
+  return soloDigitos.length >= 8 && soloDigitos.length <= 13;
+}
+
+function mostrarErrorCampo(idError) {
+  const error = document.getElementById(idError);
+  if (error) {
+    error.hidden = false;
+  }
+}
+
+function ocultarErrorCampo(idError) {
+  const error = document.getElementById(idError);
+  if (error) {
+    error.hidden = true;
+  }
 }
 
 function actualizarTextoUltimaActualizacion(fechaIso) {
@@ -790,6 +844,13 @@ function crearFilaResumen(item) {
 async function manejarSubmitCheckout(evento) {
   evento.preventDefault();
 
+  const telefono = document.getElementById("customer-phone").value.trim();
+  if (!telefonoEsValido(telefono)) {
+    mostrarErrorCampo("customer-phone-error");
+    return;
+  }
+  ocultarErrorCampo("customer-phone-error");
+
   const boton = document.getElementById("btn-confirm-order");
   boton.disabled = true;
 
@@ -800,7 +861,20 @@ async function manejarSubmitCheckout(evento) {
     }
 
     const nombre = document.getElementById("customer-name").value.trim();
-    const telefono = document.getElementById("customer-phone").value.trim();
+
+    // Si el cliente no eligió vendedor/a preferido, se le asigna
+    // automáticamente el que tenga menos pedidos activos en este
+    // momento (ver asignar_vendedor_automatico en supabase/schema.sql),
+    // para que el trabajo quede parejo y el pedido salga más rápido.
+    const vendedorElegido = document.getElementById("customer-vendedor").value;
+    let vendedorId = vendedorElegido || null;
+    if (!vendedorId) {
+      try {
+        vendedorId = await asignarVendedorAutomatico();
+      } catch (error) {
+        vendedorId = null;
+      }
+    }
 
     const items = obtenerItemsCarrito().map(function (item) {
       return {
@@ -819,6 +893,7 @@ async function manejarSubmitCheckout(evento) {
       items: items,
       total: obtenerTotalCarrito(),
       cantidadArticulos: obtenerCantidadTotalCarrito(),
+      vendedorId: vendedorId,
     };
 
     const registrado = await crearPedido(pedidoInfo);
@@ -1041,20 +1116,36 @@ function configurarBienvenida() {
 
   document.getElementById("welcome-form-existente").addEventListener("submit", function (evento) {
     evento.preventDefault();
+
+    const telefono = document.getElementById("welcome-existente-telefono").value.trim();
+    if (!telefonoEsValido(telefono)) {
+      mostrarErrorCampo("welcome-existente-telefono-error");
+      return;
+    }
+    ocultarErrorCampo("welcome-existente-telefono-error");
+
     guardarClienteYPrefill({
       tipo: "existente",
       nombre: document.getElementById("welcome-existente-nombre").value.trim(),
-      telefono: document.getElementById("welcome-existente-telefono").value.trim(),
+      telefono: telefono,
     });
     ocultarModal(document.getElementById("welcome-modal"));
   });
 
   document.getElementById("welcome-form-nuevo").addEventListener("submit", function (evento) {
     evento.preventDefault();
+
+    const telefono = document.getElementById("welcome-nuevo-telefono").value.trim();
+    if (!telefonoEsValido(telefono)) {
+      mostrarErrorCampo("welcome-nuevo-telefono-error");
+      return;
+    }
+    ocultarErrorCampo("welcome-nuevo-telefono-error");
+
     guardarClienteYPrefill({
       tipo: "nuevo",
       nombre: document.getElementById("welcome-nuevo-nombre").value.trim(),
-      telefono: document.getElementById("welcome-nuevo-telefono").value.trim(),
+      telefono: telefono,
       provincia: document.getElementById("welcome-nuevo-provincia").value.trim(),
       local: document.getElementById("welcome-nuevo-local").value.trim(),
     });

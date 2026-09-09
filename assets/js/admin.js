@@ -16,6 +16,7 @@
 let productosAdmin = []; // Catálogo completo (activos e inactivos) con variantes.
 let productoSeleccionadoId = null;
 let vendedoresAdmin = []; // Para el desplegable de "Vendedor/a" en Pedidos y la pestaña de Vendedores.
+let pedidosAdmin = []; // Cache local para no repedir a Supabase en cada acción de la tabla/reporte.
 
 // ---------------------------------------------------------------------
 // Inicialización
@@ -42,6 +43,12 @@ function wireEventosEstaticos() {
   });
   document.getElementById("form-change-pin").addEventListener("submit", manejarSubmitCambiarPin);
 
+  document.getElementById("btn-open-config").addEventListener("click", function () {
+    mostrarModal(document.getElementById("modal-config"));
+  });
+  document.getElementById("btn-close-config").addEventListener("click", function () {
+    ocultarModal(document.getElementById("modal-config"));
+  });
   document.getElementById("form-config").addEventListener("submit", manejarSubmitConfig);
 
   const dropzone = document.getElementById("excel-dropzone");
@@ -184,12 +191,23 @@ async function cargarDatosAdmin() {
     document.getElementById("config-whatsapp").value = config.whatsapp_vendedor || "";
     productosAdmin = catalogo;
     vendedoresAdmin = vendedores;
+    pedidosAdmin = pedidos;
     renderListaProductos("");
-    renderTablaPedidos(pedidos);
+    renderTablaPedidos(pedidosAdmin);
+    renderReporteVendedores(pedidosAdmin);
     renderVendedoresAgrupados();
   } catch (error) {
     mostrarToast("No se pudieron cargar los datos del panel.", "error");
   }
+}
+
+// Vuelve a pedir los pedidos a Supabase y refresca tanto la tabla como
+// el reporte por vendedor/a, para que ambos siempre reflejen el mismo
+// estado (evita que uno quede desactualizado tras una acción puntual).
+async function refrescarPedidos() {
+  pedidosAdmin = await obtenerPedidos();
+  renderTablaPedidos(pedidosAdmin);
+  renderReporteVendedores(pedidosAdmin);
 }
 
 // ---------------------------------------------------------------------
@@ -202,6 +220,7 @@ async function manejarSubmitConfig(evento) {
   const numero = document.getElementById("config-whatsapp").value.trim();
   try {
     await actualizarConfig({ whatsapp_vendedor: numero });
+    ocultarModal(document.getElementById("modal-config"));
     mostrarToast("Configuración guardada.", "success");
   } catch (error) {
     mostrarToast("No se pudo guardar la configuración.", "error");
@@ -299,11 +318,9 @@ function crearFilaPedido(pedido) {
   fila.appendChild(celdaFecha);
 
   const celdaCliente = document.createElement("td");
-  celdaCliente.textContent = pedido.cliente_nombre;
   fila.appendChild(celdaCliente);
 
   const celdaTelefono = document.createElement("td");
-  celdaTelefono.textContent = pedido.cliente_telefono;
   fila.appendChild(celdaTelefono);
 
   const celdaArticulos = document.createElement("td");
@@ -315,22 +332,50 @@ function crearFilaPedido(pedido) {
   fila.appendChild(celdaTotal);
 
   const celdaEstado = document.createElement("td");
-  const badgeEstado = document.createElement("span");
-  const asignado = pedido.estado === "asignado";
-  badgeEstado.className = "pedido-badge " + (asignado ? "asignado" : "nuevo");
-  badgeEstado.textContent = asignado ? "✅ Asignado" : "🆕 Nuevo";
-  celdaEstado.appendChild(badgeEstado);
   fila.appendChild(celdaEstado);
 
   const celdaVendedor = document.createElement("td");
+  fila.appendChild(celdaVendedor);
+
+  const celdaAcciones = document.createElement("td");
+  celdaAcciones.style.display = "flex";
+  celdaAcciones.style.flexWrap = "wrap";
+  celdaAcciones.style.gap = "0.5rem";
+  fila.appendChild(celdaAcciones);
+
+  renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones);
+
+  return fila;
+}
+
+const ETIQUETAS_ESTADO_PEDIDO = { nuevo: "🆕 Nuevo", asignado: "✅ Asignado", completado: "💰 Completado" };
+
+// Vista normal de una fila de pedido: texto de cliente/teléfono, badge
+// de estado, desplegable de vendedor/a y los botones de acción. Se
+// separa de crearFilaPedido para poder volver a esta vista después de
+// cancelar una edición, sin tener que reconstruir toda la fila.
+function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones) {
+  celdaCliente.textContent = pedido.cliente_nombre;
+  celdaTelefono.textContent = pedido.cliente_telefono;
+
+  while (celdaEstado.firstChild) {
+    celdaEstado.removeChild(celdaEstado.firstChild);
+  }
+  const badgeEstado = document.createElement("span");
+  badgeEstado.className = "pedido-badge " + pedido.estado;
+  badgeEstado.textContent = ETIQUETAS_ESTADO_PEDIDO[pedido.estado] || pedido.estado;
+  celdaEstado.appendChild(badgeEstado);
+
+  while (celdaVendedor.firstChild) {
+    celdaVendedor.removeChild(celdaVendedor.firstChild);
+  }
   const selectVendedor = document.createElement("select");
   selectVendedor.className = "form-input";
   selectVendedor.style.width = "auto";
   selectVendedor.style.padding = "0.35rem 0.5rem";
   selectVendedor.style.fontSize = "0.8rem";
-  // Hasta que no se descarga el Excel no tiene sentido elegir vendedora
-  // (todavía no se decidió a quién se le asigna el pedido).
-  selectVendedor.disabled = !asignado;
+  // Una vez completado (cobrado/entregado) no tiene sentido reasignarlo.
+  selectVendedor.disabled = pedido.estado === "completado";
 
   const opcionVacia = document.createElement("option");
   opcionVacia.value = "";
@@ -351,11 +396,10 @@ function crearFilaPedido(pedido) {
     guardarVendedorPedido(pedido.id, selectVendedor.value || null);
   });
   celdaVendedor.appendChild(selectVendedor);
-  fila.appendChild(celdaVendedor);
 
-  const celdaAcciones = document.createElement("td");
-  celdaAcciones.style.display = "flex";
-  celdaAcciones.style.gap = "0.5rem";
+  while (celdaAcciones.firstChild) {
+    celdaAcciones.removeChild(celdaAcciones.firstChild);
+  }
 
   const btnExcel = document.createElement("button");
   btnExcel.type = "button";
@@ -382,9 +426,144 @@ function crearFilaPedido(pedido) {
   enlaceVer.textContent = "👁️ Ver";
   celdaAcciones.appendChild(enlaceVer);
 
-  fila.appendChild(celdaAcciones);
+  if (pedido.estado === "asignado") {
+    const btnCompletar = document.createElement("button");
+    btnCompletar.type = "button";
+    btnCompletar.className = "btn-secondary";
+    btnCompletar.style.width = "auto";
+    btnCompletar.style.padding = "0.35rem 0.75rem";
+    btnCompletar.style.fontSize = "0.8rem";
+    btnCompletar.textContent = "💰 Completar";
+    btnCompletar.addEventListener("click", function () {
+      cambiarEstadoPedido(pedido.id, "completado");
+    });
+    celdaAcciones.appendChild(btnCompletar);
+  } else if (pedido.estado === "completado") {
+    const btnReabrir = document.createElement("button");
+    btnReabrir.type = "button";
+    btnReabrir.className = "btn-secondary";
+    btnReabrir.style.width = "auto";
+    btnReabrir.style.padding = "0.35rem 0.75rem";
+    btnReabrir.style.fontSize = "0.8rem";
+    btnReabrir.textContent = "↩️ Reabrir";
+    btnReabrir.addEventListener("click", function () {
+      cambiarEstadoPedido(pedido.id, "asignado");
+    });
+    celdaAcciones.appendChild(btnReabrir);
+  }
 
-  return fila;
+  const btnEditar = document.createElement("button");
+  btnEditar.type = "button";
+  btnEditar.className = "btn-secondary";
+  btnEditar.style.width = "auto";
+  btnEditar.style.padding = "0.35rem 0.75rem";
+  btnEditar.style.fontSize = "0.8rem";
+  btnEditar.textContent = "✏️ Editar";
+  btnEditar.addEventListener("click", function () {
+    renderFilaPedidoEdicion(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones);
+  });
+  celdaAcciones.appendChild(btnEditar);
+
+  const btnEliminar = document.createElement("button");
+  btnEliminar.type = "button";
+  btnEliminar.className = "btn-delete-var";
+  btnEliminar.textContent = "🗑️";
+  btnEliminar.addEventListener("click", function () {
+    confirmarAccionDoble(btnEliminar, "¿Confirmar?", async function () {
+      try {
+        await eliminarPedido(pedido.id);
+        await refrescarPedidos();
+        mostrarToast("Pedido eliminado.", "success");
+      } catch (error) {
+        mostrarToast("No se pudo eliminar el pedido.", "error");
+      }
+    });
+  });
+  celdaAcciones.appendChild(btnEliminar);
+}
+
+// Vista de edición: nombre y teléfono del cliente pasan a inputs, y los
+// botones de acción se reemplazan por Guardar/Cancelar. El resto de la
+// fila (fecha, artículos, total, estado, vendedor/a) no se toca.
+function renderFilaPedidoEdicion(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones) {
+  while (celdaCliente.firstChild) {
+    celdaCliente.removeChild(celdaCliente.firstChild);
+  }
+  const inputNombre = document.createElement("input");
+  inputNombre.type = "text";
+  inputNombre.className = "form-input";
+  inputNombre.style.padding = "0.35rem 0.5rem";
+  inputNombre.style.fontSize = "0.85rem";
+  inputNombre.value = pedido.cliente_nombre;
+  celdaCliente.appendChild(inputNombre);
+
+  while (celdaTelefono.firstChild) {
+    celdaTelefono.removeChild(celdaTelefono.firstChild);
+  }
+  const inputTelefono = document.createElement("input");
+  inputTelefono.type = "tel";
+  inputTelefono.className = "form-input";
+  inputTelefono.style.padding = "0.35rem 0.5rem";
+  inputTelefono.style.fontSize = "0.85rem";
+  inputTelefono.value = pedido.cliente_telefono;
+  celdaTelefono.appendChild(inputTelefono);
+
+  const errorTelefono = document.createElement("p");
+  errorTelefono.className = "form-error";
+  errorTelefono.textContent = "Teléfono inválido (8 a 13 dígitos).";
+  errorTelefono.hidden = true;
+  celdaTelefono.appendChild(errorTelefono);
+
+  while (celdaAcciones.firstChild) {
+    celdaAcciones.removeChild(celdaAcciones.firstChild);
+  }
+
+  const btnGuardar = document.createElement("button");
+  btnGuardar.type = "button";
+  btnGuardar.className = "btn-primary";
+  btnGuardar.style.width = "auto";
+  btnGuardar.style.padding = "0.35rem 0.75rem";
+  btnGuardar.style.fontSize = "0.8rem";
+  btnGuardar.textContent = "💾 Guardar";
+  btnGuardar.addEventListener("click", async function () {
+    const nombre = inputNombre.value.trim();
+    const telefono = inputTelefono.value.trim();
+
+    if (!telefonoEsValidoAdmin(telefono)) {
+      errorTelefono.hidden = false;
+      return;
+    }
+    errorTelefono.hidden = true;
+
+    try {
+      await actualizarPedido(pedido.id, { cliente_nombre: nombre, cliente_telefono: telefono });
+      await refrescarPedidos();
+      mostrarToast("Pedido actualizado.", "success");
+    } catch (error) {
+      mostrarToast("No se pudo actualizar el pedido.", "error");
+    }
+  });
+  celdaAcciones.appendChild(btnGuardar);
+
+  const btnCancelar = document.createElement("button");
+  btnCancelar.type = "button";
+  btnCancelar.className = "btn-secondary";
+  btnCancelar.style.width = "auto";
+  btnCancelar.style.padding = "0.35rem 0.75rem";
+  btnCancelar.style.fontSize = "0.8rem";
+  btnCancelar.textContent = "Cancelar";
+  btnCancelar.addEventListener("click", function () {
+    renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones);
+  });
+  celdaAcciones.appendChild(btnCancelar);
+}
+
+// Igual que telefonoEsValido de app.js (no se comparte módulo entre
+// index.html y admin.html): solo valida cantidad de dígitos razonable
+// para un teléfono argentino, sin exigir un formato exacto.
+function telefonoEsValidoAdmin(texto) {
+  const soloDigitos = (texto || "").replace(/\D/g, "");
+  return soloDigitos.length >= 8 && soloDigitos.length <= 13;
 }
 
 // Genera (con excel-generator.js) y descarga el Excel de un pedido
@@ -412,28 +591,142 @@ function descargarExcelPedido(pedido) {
 }
 
 // Descargar el Excel es la acción que marca al pedido como "en curso":
-// pasa de "nuevo" a "asignado" y habilita elegir la vendedora. No hace
-// nada si ya estaba asignado (evita pisar la vendedora ya elegida).
+// pasa de "nuevo" a "asignado". No hace nada si ya estaba asignado o
+// completado (evita retroceder un pedido ya procesado).
 async function marcarPedidoAsignado(pedido) {
-  if (pedido.estado === "asignado") return;
+  if (pedido.estado !== "nuevo") return;
 
   try {
     await actualizarPedido(pedido.id, { estado: "asignado" });
-    const pedidos = await obtenerPedidos();
-    renderTablaPedidos(pedidos);
+    await refrescarPedidos();
     mostrarToast("Pedido marcado como asignado. Elegí la vendedora en el desplegable.", "success");
   } catch (error) {
     mostrarToast("No se pudo marcar el pedido como asignado.", "error");
   }
 }
 
+// Botón "💰 Completar" / "↩️ Reabrir" de la tabla de pedidos.
+async function cambiarEstadoPedido(pedidoId, nuevoEstado) {
+  try {
+    await actualizarPedido(pedidoId, { estado: nuevoEstado });
+    await refrescarPedidos();
+    mostrarToast(
+      nuevoEstado === "completado" ? "Pedido marcado como completado." : "Pedido reabierto como asignado.",
+      "success"
+    );
+  } catch (error) {
+    mostrarToast("No se pudo actualizar el estado del pedido.", "error");
+  }
+}
+
 async function guardarVendedorPedido(pedidoId, vendedorId) {
   try {
     await actualizarPedido(pedidoId, { vendedor_id: vendedorId });
+    await refrescarPedidos();
     mostrarToast("Vendedora asignada al pedido.", "success");
   } catch (error) {
     mostrarToast("No se pudo asignar la vendedora.", "error");
   }
+}
+
+// ---------------------------------------------------------------------
+// Reporte por vendedor/a: qué pedidos tiene cada uno y cuáles quedaron
+// pendientes de cobro/entrega (no completados), para no perderles el
+// rastro cuando quedan "colgados" en Asignado.
+// ---------------------------------------------------------------------
+
+function renderReporteVendedores(pedidos) {
+  const contenedor = document.getElementById("reporte-vendedores");
+  while (contenedor.firstChild) {
+    contenedor.removeChild(contenedor.firstChild);
+  }
+
+  const conVendedor = pedidos.filter(function (p) {
+    return p.vendedor_id;
+  });
+
+  if (conVendedor.length === 0) {
+    const vacio = document.createElement("p");
+    vacio.style.color = "var(--color-text-light)";
+    vacio.style.fontSize = "0.9rem";
+    vacio.textContent = "Todavía no hay pedidos asignados a ningún vendedor/a.";
+    contenedor.appendChild(vacio);
+    return;
+  }
+
+  const porVendedor = {};
+  conVendedor.forEach(function (pedido) {
+    if (!porVendedor[pedido.vendedor_id]) {
+      porVendedor[pedido.vendedor_id] = [];
+    }
+    porVendedor[pedido.vendedor_id].push(pedido);
+  });
+
+  Object.keys(porVendedor).forEach(function (vendedorId) {
+    contenedor.appendChild(crearGrupoReporteVendedor(vendedorId, porVendedor[vendedorId]));
+  });
+}
+
+function crearGrupoReporteVendedor(vendedorId, pedidosVendedor) {
+  const vendedor = vendedoresAdmin.find(function (v) {
+    return v.id === vendedorId;
+  });
+  const nombreVendedor = vendedor ? vendedor.nombre_completo + " (" + vendedor.provincia + ")" : "Vendedor/a eliminado/a";
+  const pendientes = pedidosVendedor.filter(function (p) {
+    return p.estado !== "completado";
+  });
+  const completados = pedidosVendedor.length - pendientes.length;
+
+  const grupo = document.createElement("div");
+  grupo.className = "reporte-vendedor-group";
+
+  const header = document.createElement("div");
+  header.className = "reporte-vendedor-header";
+
+  const nombre = document.createElement("span");
+  nombre.className = "reporte-vendedor-nombre";
+  nombre.textContent = nombreVendedor;
+  header.appendChild(nombre);
+
+  const conteo = document.createElement("span");
+  conteo.className = "reporte-vendedor-conteo";
+  conteo.textContent =
+    pedidosVendedor.length + " asignados · " + completados + " completados · " + pendientes.length + " pendientes";
+  header.appendChild(conteo);
+
+  grupo.appendChild(header);
+
+  if (pendientes.length === 0) {
+    const ok = document.createElement("p");
+    ok.style.margin = "0";
+    ok.style.fontSize = "0.82rem";
+    ok.style.color = "var(--color-text-light)";
+    ok.textContent = "✅ Sin pedidos pendientes de cobro/entrega.";
+    grupo.appendChild(ok);
+  } else {
+    pendientes.forEach(function (pedido) {
+      grupo.appendChild(crearFilaReportePendiente(pedido));
+    });
+  }
+
+  return grupo;
+}
+
+function crearFilaReportePendiente(pedido) {
+  const fila = document.createElement("div");
+  fila.className = "reporte-pedido-pendiente";
+
+  const info = document.createElement("span");
+  info.textContent =
+    pedido.cliente_nombre + " — " + formatearMoneda(pedido.total) + " (" + (ETIQUETAS_ESTADO_PEDIDO[pedido.estado] || pedido.estado) + ")";
+  fila.appendChild(info);
+
+  const fecha = document.createElement("span");
+  fecha.style.color = "var(--color-text-light)";
+  fecha.textContent = new Date(pedido.created_at).toLocaleDateString("es-AR");
+  fila.appendChild(fecha);
+
+  return fila;
 }
 
 // ---------------------------------------------------------------------
@@ -944,17 +1237,28 @@ function renderVendedorRowEdicion(fila, vendedor) {
   btnGuardar.style.fontSize = "0.78rem";
   btnGuardar.textContent = "💾 Guardar";
   btnGuardar.addEventListener("click", async function () {
+    const nombreNuevo = inputNombre.value.trim();
+    const provinciaNueva = inputProvincia.value.trim();
+
+    if (existeVendedorDuplicado(nombreNuevo, provinciaNueva, vendedor.id)) {
+      mostrarToast("Ya existe otro vendedor con ese nombre en esa provincia.", "error");
+      return;
+    }
+
     try {
       await actualizarVendedor(vendedor.id, {
-        nombre_completo: inputNombre.value.trim(),
-        provincia: inputProvincia.value.trim(),
+        nombre_completo: nombreNuevo,
+        provincia: provinciaNueva,
         numero_zeus: inputZeus.value.trim(),
       });
       vendedoresAdmin = await obtenerVendedores();
       renderVendedoresAgrupados();
       mostrarToast("Vendedor actualizado.", "success");
     } catch (error) {
-      mostrarToast("No se pudo actualizar el vendedor.", "error");
+      mostrarToast(
+        esErrorVendedorDuplicado(error) ? "Ya existe otro vendedor con ese nombre en esa provincia." : "No se pudo actualizar el vendedor.",
+        "error"
+      );
     }
   });
   acciones.appendChild(btnGuardar);
@@ -981,6 +1285,15 @@ async function manejarSubmitAgregarVendedor(evento) {
   const provincia = document.getElementById("vendedor-provincia").value.trim();
   const zeus = document.getElementById("vendedor-zeus").value.trim();
 
+  // Antes se podía cargar el mismo vendedor dos veces sin ningún aviso;
+  // se chequea primero contra lo que ya está en memoria (feedback
+  // inmediato) y la restricción única de la base (ver schema.sql) queda
+  // como red de seguridad ante altas simultáneas desde dos sesiones.
+  if (existeVendedorDuplicado(nombre, provincia, null)) {
+    mostrarToast("Ya existe un vendedor con ese nombre en esa provincia.", "error");
+    return;
+  }
+
   try {
     await crearVendedor({ nombreCompleto: nombre, provincia: provincia, numeroZeus: zeus });
     document.getElementById("form-add-vendedor").reset();
@@ -988,8 +1301,29 @@ async function manejarSubmitAgregarVendedor(evento) {
     renderVendedoresAgrupados();
     mostrarToast("Vendedor agregado.", "success");
   } catch (error) {
-    mostrarToast("No se pudo agregar el vendedor.", "error");
+    mostrarToast(
+      esErrorVendedorDuplicado(error) ? "Ya existe un vendedor con ese nombre en esa provincia." : "No se pudo agregar el vendedor.",
+      "error"
+    );
   }
+}
+
+// idExcluir se usa al editar: no debe compararse un vendedor contra sí
+// mismo, solo contra los demás.
+function existeVendedorDuplicado(nombre, provincia, idExcluir) {
+  const nombreNorm = nombre.trim().toLowerCase();
+  const provinciaNorm = provincia.trim().toLowerCase();
+  return vendedoresAdmin.some(function (v) {
+    return (
+      v.id !== idExcluir &&
+      v.nombre_completo.trim().toLowerCase() === nombreNorm &&
+      v.provincia.trim().toLowerCase() === provinciaNorm
+    );
+  });
+}
+
+function esErrorVendedorDuplicado(error) {
+  return Boolean(error && (error.code === "23505" || (error.message && /duplicate|unique/i.test(error.message))));
 }
 
 // ---------------------------------------------------------------------

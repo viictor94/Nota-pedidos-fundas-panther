@@ -92,6 +92,23 @@ create table if not exists public.vendedores (
 
 create index if not exists vendedores_provincia_idx on public.vendedores(provincia);
 
+-- Evita cargar el mismo vendedor dos veces sin darse cuenta (mismo
+-- nombre en la misma provincia); sin esto el alta lo permitía en
+-- silencio. Comparación sin importar mayúsculas/espacios.
+--
+-- Si ya se habían cargado duplicados antes de existir esta regla, el
+-- create unique index de abajo fallaría; se los borra primero (se
+-- queda con el más viejo de cada grupo repetido).
+delete from public.vendedores a
+using public.vendedores b
+where a.id > b.id
+  and lower(trim(a.nombre_completo)) = lower(trim(b.nombre_completo))
+  and lower(trim(a.provincia)) = lower(trim(b.provincia));
+
+drop index if exists public.vendedores_nombre_provincia_unq;
+create unique index vendedores_nombre_provincia_unq
+  on public.vendedores (lower(trim(nombre_completo)), lower(trim(provincia)));
+
 -- Registro/auditoría de pedidos enviados por los clientes.
 create table if not exists public.pedidos (
   id                  uuid primary key default gen_random_uuid(),
@@ -104,13 +121,20 @@ create table if not exists public.pedidos (
 );
 
 -- Estado del pedido en el panel admin: "nuevo" hasta que se descarga su
--- Excel (ahí pasa a "asignado" automáticamente), y qué vendedor/a quedó
--- a cargo. Se agregan con alter (en vez de solo en el create table de
--- arriba) para que el script sea seguro de re-ejecutar sobre una base
--- ya provisionada de antes.
-alter table public.pedidos add column if not exists estado text not null default 'nuevo'
-  check (estado in ('nuevo', 'asignado'));
+-- Excel (ahí pasa a "asignado" automáticamente), "completado" cuando el
+-- admin confirma que ya se cobró/entregó (para el reporte por
+-- vendedor), y qué vendedor/a quedó a cargo. Se agregan con alter (en
+-- vez de solo en el create table de arriba) para que el script sea
+-- seguro de re-ejecutar sobre una base ya provisionada de antes.
+alter table public.pedidos add column if not exists estado text not null default 'nuevo';
 alter table public.pedidos add column if not exists vendedor_id uuid references public.vendedores(id) on delete set null;
+
+-- El check de "estado" se agregó sin nombre explícito en una versión
+-- anterior de este archivo (quedó autonombrado "pedidos_estado_check");
+-- se reemplaza para poder sumarle "completado" sin duplicar la regla.
+alter table public.pedidos drop constraint if exists pedidos_estado_check;
+alter table public.pedidos add constraint pedidos_estado_check
+  check (estado in ('nuevo', 'asignado', 'completado'));
 
 -- ---------------------------------------------------------------------
 -- updated_at automático
@@ -241,6 +265,47 @@ $$;
 
 revoke all on function public.obtener_pedido_publico(uuid) from public;
 grant execute on function public.obtener_pedido_publico(uuid) to anon, authenticated;
+
+-- Lista liviana de vendedores para el desplegable opcional del
+-- checkout ("elegí tu vendedor/a preferido"). Los datos completos de
+-- "vendedores" (incluido el N° de Zeus) siguen sin lectura pública;
+-- esta función SECURITY DEFINER solo expone lo necesario para elegir.
+create or replace function public.obtener_vendedores_publico()
+returns table (id uuid, nombre_completo text, provincia text)
+language sql
+security definer
+set search_path = public
+as $$
+  select id, nombre_completo, provincia
+  from public.vendedores
+  where activo
+  order by provincia, nombre_completo;
+$$;
+
+revoke all on function public.obtener_vendedores_publico() from public;
+grant execute on function public.obtener_vendedores_publico() to anon, authenticated;
+
+-- Si el cliente no elige vendedor/a en el checkout, se le asigna el que
+-- tenga menos pedidos activos (sin completar) en este momento, para que
+-- el trabajo quede parejo entre todos y el pedido salga más rápido.
+create or replace function public.asignar_vendedor_automatico()
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select v.id
+  from public.vendedores v
+  left join public.pedidos p
+    on p.vendedor_id = v.id and p.estado <> 'completado'
+  where v.activo
+  group by v.id
+  order by count(p.id) asc, v.nombre_completo asc
+  limit 1;
+$$;
+
+revoke all on function public.asignar_vendedor_automatico() from public;
+grant execute on function public.asignar_vendedor_automatico() to anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- Row Level Security

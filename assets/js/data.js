@@ -105,6 +105,7 @@ async function crearPedido(pedido) {
     items: pedido.items,
     total: pedido.total,
     cantidad_articulos: pedido.cantidadArticulos,
+    vendedor_id: pedido.vendedorId || null,
   });
 
   if (error) {
@@ -145,13 +146,48 @@ async function obtenerPedidos() {
   return data;
 }
 
-// Actualiza campos puntuales de un pedido (estado "nuevo"/"asignado" al
-// descargar su Excel, o la vendedora elegida en el desplegable).
+// Actualiza campos puntuales de un pedido (estado "nuevo"/"asignado"/
+// "completado", la vendedora elegida en el desplegable, o una
+// corrección de nombre/teléfono del cliente).
 async function actualizarPedido(id, campos) {
   const { error } = await supabaseClient.from("pedidos").update(campos).eq("id", id);
   if (error) {
     throw error;
   }
+}
+
+async function eliminarPedido(id) {
+  const { error } = await supabaseClient.from("pedidos").delete().eq("id", id);
+  if (error) {
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Vendedores: lectura pública liviana (checkout del cliente)
+// ---------------------------------------------------------------------
+
+// Solo id/nombre/provincia (no el N° de Zeus) para el desplegable
+// opcional "elegí tu vendedor/a" del checkout. Usa la función
+// obtener_vendedores_publico de supabase/schema.sql, ya que la tabla
+// "vendedores" en sí no tiene lectura pública.
+async function obtenerVendedoresPublico() {
+  const { data, error } = await supabaseClient.rpc("obtener_vendedores_publico");
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+// Si el cliente no elige vendedor/a, se le asigna el que tenga menos
+// pedidos activos en este momento (ver asignar_vendedor_automatico en
+// supabase/schema.sql). Devuelve null si no hay ningún vendedor cargado.
+async function asignarVendedorAutomatico() {
+  const { data, error } = await supabaseClient.rpc("asignar_vendedor_automatico");
+  if (error) {
+    throw error;
+  }
+  return data;
 }
 
 // ---------------------------------------------------------------------

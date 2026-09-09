@@ -95,7 +95,15 @@
         
         <div class="form-group">
           <label class="form-label" for="customer-phone">Teléfono de Contacto *</label>
-          <input type="tel" id="customer-phone" class="form-input" required autocomplete="tel">
+          <input type="tel" id="customer-phone" class="form-input" required autocomplete="tel" inputmode="tel">
+          <p class="form-error" id="customer-phone-error" hidden>Ingresá un teléfono argentino válido (solo números, entre 8 y 13 dígitos).</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="customer-vendedor">Vendedor/a preferido/a (opcional)</label>
+          <select id="customer-vendedor" class="form-input">
+            <option value="">Sin preferencia (se asigna el primero disponible)</option>
+          </select>
         </div>
 
         <h3>Detalle del Pedido</h3>
@@ -182,6 +190,7 @@
 
       <div id="welcome-step-inicial" class="welcome-step">
         <h3 class="welcome-title">¡Bienvenido a Panther Distribuciones!</h3>
+        <p class="welcome-subtitle">📱 Acá encontrás todas las fundas de celular que tenemos disponibles (no vendemos otro tipo de artículos).</p>
         <p class="welcome-subtitle">Contanos quién sos para completarte los datos más rápido la próxima vez.</p>
         <div class="welcome-options">
           <button type="button" id="btn-welcome-existente" class="btn-primary" style="justify-content: center;">Ya soy cliente</button>
@@ -197,7 +206,8 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="welcome-existente-telefono">Teléfono *</label>
-          <input type="tel" id="welcome-existente-telefono" class="form-input" required autocomplete="tel">
+          <input type="tel" id="welcome-existente-telefono" class="form-input" required autocomplete="tel" inputmode="tel">
+          <p class="form-error" id="welcome-existente-telefono-error" hidden>Ingresá un teléfono argentino válido (solo números, entre 8 y 13 dígitos).</p>
         </div>
         <button type="submit" class="btn-primary" style="justify-content: center;">Continuar</button>
       </form>
@@ -210,7 +220,8 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="welcome-nuevo-telefono">Teléfono *</label>
-          <input type="tel" id="welcome-nuevo-telefono" class="form-input" required autocomplete="tel">
+          <input type="tel" id="welcome-nuevo-telefono" class="form-input" required autocomplete="tel" inputmode="tel">
+          <p class="form-error" id="welcome-nuevo-telefono-error" hidden>Ingresá un teléfono argentino válido (solo números, entre 8 y 13 dígitos).</p>
         </div>
         <div class="form-group">
           <label class="form-label" for="welcome-nuevo-provincia">Provincia *</label>

@@ -231,6 +231,40 @@
       background: #dcfce7;
       color: #166534;
     }
+    .pedido-badge.completado {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .reporte-vendedor-group {
+      margin-bottom: 1.25rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 0.85rem 1rem;
+    }
+    .reporte-vendedor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .reporte-vendedor-nombre {
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .reporte-vendedor-conteo {
+      font-size: 0.78rem;
+      color: var(--color-text-light);
+    }
+    .reporte-pedido-pendiente {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.82rem;
+      padding: 0.35rem 0;
+      border-top: 1px dashed var(--color-border);
+    }
 
     /* ---------- Vendedores agrupados por provincia ---------- */
     .vendedor-group {
@@ -358,6 +392,9 @@
           <small style="color: var(--color-text-light);">Actualizador de Precios, Stock, Modelos y Fotos</small>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button type="button" id="btn-open-config" class="btn-secondary" style="margin: 0; width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;" aria-label="Configuración general" title="Configuración general">
+            ⚙️
+          </button>
           <button type="button" id="btn-change-pin" class="btn-secondary" style="margin: 0; width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;">
             🔑 Cambiar PIN
           </button>
@@ -380,20 +417,6 @@
       </nav>
 
       <div id="tab-stock" class="admin-tab-panel active">
-
-      <!-- SECCIÓN 0: CONFIGURACIÓN GENERAL -->
-      <section class="admin-card">
-        <h2>⚙️ Configuración General</h2>
-        <form id="form-config">
-          <div class="form-group">
-            <label class="form-label" for="config-whatsapp">Número de WhatsApp del Vendedor</label>
-            <input type="tel" id="config-whatsapp" class="form-input" placeholder="Ej: 5491122334455 (código de país + número, sin espacios ni +)">
-          </div>
-          <button type="submit" class="btn-primary" style="width: auto; padding: 0.5rem 1.25rem; font-size: 0.875rem;">
-            Guardar Configuración
-          </button>
-        </form>
-      </section>
 
       <!-- SECCIÓN 1: SUBIR EXCEL DE PRECIOS Y STOCK -->
       <section class="admin-card">
@@ -524,7 +547,8 @@
           <h2>🧾 Pedidos Recibidos</h2>
           <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.95rem;">
             Pedidos armados por clientes desde la web. Un pedido queda <strong>🆕 Nuevo</strong> hasta que se descarga
-            su Excel; al descargarlo pasa a <strong>✅ Asignado</strong> y ahí se elige qué vendedora quedó a cargo.
+            su Excel; al descargarlo pasa a <strong>✅ Asignado</strong>, y una vez que la vendedora cobró/entregó se
+            marca <strong>💰 Completado</strong>.
           </p>
           <div style="overflow-x: auto;">
             <table class="table-variants">
@@ -544,6 +568,17 @@
                 <!-- Filas generadas vía JS -->
               </tbody>
             </table>
+          </div>
+        </section>
+
+        <section class="admin-card">
+          <h2>📊 Reporte por Vendedor/a</h2>
+          <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.95rem;">
+            Pedidos asignados a cada vendedor/a, para corroborar que se hayan cobrado o entregado y no queden
+            colgados en "Asignado".
+          </p>
+          <div id="reporte-vendedores">
+            <!-- Grupos generados vía JS -->
           </div>
         </section>
       </div>
@@ -646,6 +681,27 @@
         <div class="modal-footer-sticky" style="margin-top: 0.5rem;">
           <button type="submit" class="btn-primary" style="justify-content: center; width: 100%;">
             Guardar y Agregar Variantes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIGURACIÓN GENERAL -->
+  <div id="modal-config" class="modal-overlay">
+    <div class="modal-content" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Configuración General</h3>
+        <button id="btn-close-config" class="btn-close">×</button>
+      </div>
+      <form id="form-config" class="modal-body-scroll" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div class="form-group">
+          <label class="form-label" for="config-whatsapp">Número de WhatsApp del Vendedor</label>
+          <input type="tel" id="config-whatsapp" class="form-input" placeholder="Ej: 5491122334455 (código de país + número, sin espacios ni +)">
+        </div>
+        <div class="modal-footer-sticky">
+          <button type="submit" class="btn-primary" style="justify-content: center; width: 100%;">
+            Guardar Configuración
           </button>
         </div>
       </form>
