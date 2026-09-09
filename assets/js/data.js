@@ -253,6 +253,15 @@ async function eliminarVariante(id) {
   }
 }
 
+// Actualiza campos puntuales de una variante (ej. precio_anterior
+// cargado a mano en el admin, uno por uno o con "aplicar a todas").
+async function actualizarVariante(id, campos) {
+  const { error } = await supabaseClient.from("variantes").update(campos).eq("id", id);
+  if (error) {
+    throw error;
+  }
+}
+
 // Actualización masiva de precio/stock a partir del Excel del sistema
 // (columnas Codigo/Precio/Stock). "filas" es un arreglo de objetos
 // { sku, precio, stock_cantidad }.

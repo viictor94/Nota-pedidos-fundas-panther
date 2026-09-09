@@ -350,13 +350,26 @@
                 </button>
               </div>
 
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-md); padding: 0.65rem 0.85rem; margin-bottom: 0.75rem; font-size: 0.85rem;">
+                <span>💲 Precio anterior (tachado): aplicar</span>
+                <input type="number" id="input-porcentaje-tachado" class="form-input" value="20" min="1" max="300" style="width: 70px; padding: 0.35rem 0.5rem;">
+                <span>% arriba del precio actual a</span>
+                <button type="button" id="btn-aplicar-tachado-todas" class="btn-secondary" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                  todas las variantes
+                </button>
+              </div>
+              <p style="font-size: 0.75rem; color: var(--color-text-light); margin: -0.35rem 0 0.75rem;">
+                También podés cargar o corregir el precio anterior de una variante puntual escribiéndolo en su columna de la tabla (dejalo vacío para que use el % de arriba).
+              </p>
+
               <div style="overflow-x: auto;">
                 <table class="table-variants">
                   <thead>
                     <tr>
                       <th>SKU</th>
                       <th>Modelo de Teléfono</th>
-                      <th>Precio</th>
+                      <th>Precio Actual</th>
+                      <th>Precio Anterior</th>
                       <th>Stock</th>
                       <th>Acción</th>
                     </tr>

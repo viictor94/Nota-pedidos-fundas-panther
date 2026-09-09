@@ -85,15 +85,22 @@ function ordenarDestacadosPrimero(catalogo) {
 }
 
 // Precio "tachado" (viejo) que se muestra junto al precio actual para
-// dar sensación de descuento: no sale de datos reales, se calcula
-// como un porcentaje por encima del precio actual. Los productos
-// "es_nuevo" no llevan precio tachado (recién llegan, no hay "antes").
-function calcularPrecioTachado(precioActual, producto) {
+// dar sensación de descuento. Prioridad:
+// 1. El precio_anterior real que haya cargado el admin para esa
+//    variante puntual (uno por uno, o con "aplicar a todas").
+// 2. Si no cargó ninguno, se calcula como un porcentaje por encima
+//    del precio actual (20% normal, 35% si está en_promo).
+// Los productos "es_nuevo" nunca llevan precio tachado (recién
+// llegan, no hay "antes" que mostrar).
+function calcularPrecioTachado(variante, producto) {
   if (producto.es_nuevo) {
     return null;
   }
+  if (variante.precio_anterior && variante.precio_anterior > variante.precio_actual) {
+    return variante.precio_anterior;
+  }
   const factor = producto.en_promo ? 1.35 : 1.2;
-  return precioActual * factor;
+  return variante.precio_actual * factor;
 }
 
 function formatearMoneda(numero) {
@@ -291,7 +298,7 @@ function actualizarPosicionesCoverflow(estado) {
     const distancia = Math.abs(offset);
     const tarjeta = tarjetas[i];
 
-    const traslado = offset * 78;
+    const traslado = offset * 68;
     const escala = offset === 0 ? 1 : Math.max(0.6, 1 - distancia * 0.16);
     const rotacion = offset === 0 ? 0 : offset > 0 ? -20 : 20;
     const opacidad = distancia === 0 ? 1 : distancia === 1 ? 0.75 : distancia === 2 ? 0.4 : 0;
@@ -333,12 +340,12 @@ function crearTarjetaProducto(producto) {
 // crearTarjetaCoverflow (carruseles) le agregan cada uno el suyo,
 // porque el click hace cosas distintas en cada contexto.
 function construirTarjetaBase(producto) {
-  const precioMasBarato = Math.min.apply(
-    null,
-    producto.variantes.map(function (v) {
-      return v.precio_actual;
-    })
-  );
+  // Se necesita la variante más barata completa (no solo su precio)
+  // para poder mostrar su precio_anterior real si el admin lo cargó.
+  const varianteMasBarata = producto.variantes.reduce(function (min, v) {
+    return v.precio_actual < min.precio_actual ? v : min;
+  }, producto.variantes[0]);
+  const precioMasBarato = varianteMasBarata.precio_actual;
 
   const tarjeta = document.createElement("article");
   tarjeta.className = "product-card" + (producto.en_promo ? " product-card-promo" : "");
@@ -382,7 +389,7 @@ function construirTarjetaBase(producto) {
   labelDesde.textContent = "Desde";
   bloquePrecio.appendChild(labelDesde);
 
-  const precioTachado = calcularPrecioTachado(precioMasBarato, producto);
+  const precioTachado = calcularPrecioTachado(varianteMasBarata, producto);
   if (precioTachado !== null) {
     const viejo = document.createElement("span");
     viejo.className = "product-card-price-old";
@@ -441,7 +448,7 @@ function crearFilaVariante(producto, variante) {
   const filaPrecio = document.createElement("div");
   filaPrecio.className = "variant-item-price-row";
 
-  const precioTachado = calcularPrecioTachado(variante.precio_actual, producto);
+  const precioTachado = calcularPrecioTachado(variante, producto);
   if (precioTachado !== null) {
     const viejo = document.createElement("span");
     viejo.className = "variant-item-price-old";

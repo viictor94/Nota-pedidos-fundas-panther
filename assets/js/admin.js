@@ -96,6 +96,7 @@ function wireEventosEstaticos() {
   document.getElementById("btn-delete-product").addEventListener("click", manejarClickEliminarProducto);
   document.getElementById("checkbox-en-promo").addEventListener("change", manejarCambioEnPromo);
   document.getElementById("checkbox-es-nuevo").addEventListener("change", manejarCambioEsNuevo);
+  document.getElementById("btn-aplicar-tachado-todas").addEventListener("click", manejarClickAplicarTachadoTodas);
 }
 
 // ---------------------------------------------------------------------
@@ -448,6 +449,25 @@ function crearFilaTablaVariante(variante) {
   celdaPrecio.textContent = formatearMoneda(variante.precio_actual);
   fila.appendChild(celdaPrecio);
 
+  const celdaPrecioAnterior = document.createElement("td");
+  const inputPrecioAnterior = document.createElement("input");
+  inputPrecioAnterior.type = "number";
+  inputPrecioAnterior.step = "0.01";
+  inputPrecioAnterior.min = "0";
+  inputPrecioAnterior.className = "form-input";
+  inputPrecioAnterior.style.width = "100px";
+  inputPrecioAnterior.style.padding = "0.35rem 0.5rem";
+  inputPrecioAnterior.style.fontSize = "0.85rem";
+  inputPrecioAnterior.placeholder = "—";
+  if (variante.precio_anterior) {
+    inputPrecioAnterior.value = variante.precio_anterior;
+  }
+  inputPrecioAnterior.addEventListener("change", function () {
+    guardarPrecioAnteriorVariante(variante.id, inputPrecioAnterior.value);
+  });
+  celdaPrecioAnterior.appendChild(inputPrecioAnterior);
+  fila.appendChild(celdaPrecioAnterior);
+
   const celdaStock = document.createElement("td");
   const badge = document.createElement("span");
   badge.className = "rule-pill stock-badge " + claseCssStock(variante.stock_estado);
@@ -476,6 +496,54 @@ function crearFilaTablaVariante(variante) {
   fila.appendChild(celdaAccion);
 
   return fila;
+}
+
+// Guarda (o borra, si el campo queda vacío) el precio anterior de una
+// variante puntual. Al quedar vacío, el catálogo del cliente vuelve a
+// calcular el tachado automático por porcentaje para esa variante.
+async function guardarPrecioAnteriorVariante(varianteId, valorTexto) {
+  const valor = valorTexto.trim() === "" ? null : Number(valorTexto);
+  try {
+    await actualizarVariante(varianteId, { precio_anterior: valor });
+    productosAdmin = await obtenerCatalogoCompleto();
+    mostrarToast("Precio anterior actualizado.", "success");
+  } catch (error) {
+    mostrarToast("No se pudo guardar el precio anterior.", "error");
+  }
+}
+
+// Botón "aplicar a todas las variantes": calcula el precio anterior de
+// cada variante del producto seleccionado como el % indicado por
+// encima de SU precio actual (no un mismo monto fijo para todas, ya
+// que cada variante puede tener un precio distinto), y lo guarda.
+// Cualquier variante puede después corregirse a mano en su columna.
+async function manejarClickAplicarTachadoTodas() {
+  if (!productoSeleccionadoId) return;
+
+  const producto = productosAdmin.find(function (p) {
+    return p.id === productoSeleccionadoId;
+  });
+  if (!producto || producto.variantes.length === 0) return;
+
+  const porcentaje = Number(document.getElementById("input-porcentaje-tachado").value);
+  if (!porcentaje || porcentaje <= 0) {
+    mostrarToast("Ingresá un porcentaje válido.", "error");
+    return;
+  }
+
+  try {
+    await Promise.all(
+      producto.variantes.map(function (variante) {
+        const precioAnterior = Math.round(variante.precio_actual * (1 + porcentaje / 100) * 100) / 100;
+        return actualizarVariante(variante.id, { precio_anterior: precioAnterior });
+      })
+    );
+    productosAdmin = await obtenerCatalogoCompleto();
+    renderDetalleProducto(productoSeleccionadoId);
+    mostrarToast("Precio anterior aplicado a todas las variantes.", "success");
+  } catch (error) {
+    mostrarToast("No se pudo aplicar el precio anterior a todas las variantes.", "error");
+  }
 }
 
 // Confirmación de doble click (reemplaza a confirm(), prohibido por
