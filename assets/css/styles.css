@@ -603,6 +603,42 @@ a {
   border-top: 2px solid var(--color-primary);
 }
 
+/* Columna del check de armado: angosta y centrada, casillas más
+   grandes para tocar bien desde el celular. */
+.table-pedido th:first-child,
+.table-pedido td.celda-check {
+  width: 2.25rem;
+  text-align: center;
+}
+
+.celda-check input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--color-primary);
+}
+
+/* Variante ya controlada por la vendedora al armar el pedido: se
+   atenúa y tacha para que salte a la vista lo que falta. */
+.item-marcado td:not(.celda-check) {
+  background: #f3f4f6;
+  color: var(--color-text-light);
+  text-decoration: line-through;
+}
+
+/* Al imprimir (o "Guardar como PDF") solo interesa el detalle del
+   pedido para control físico: se ocultan los botones de acción y los
+   avisos transitorios de pantalla. */
+@media print {
+  .pedido-acciones-no-imprimir {
+    display: none !important;
+  }
+
+  .celda-check input[type="checkbox"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 .cart-summary {
   display: flex;
   flex-direction: column;

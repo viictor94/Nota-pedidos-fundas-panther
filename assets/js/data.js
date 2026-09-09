@@ -132,6 +132,18 @@ async function obtenerPedidoPublico(id) {
   return data && data.length > 0 ? data[0] : null;
 }
 
+// Tilda/destilda una variante del pedido en el checklist de armado de
+// pedido.html (identificada por sku, no por índice). Como
+// obtener_pedido_publico no requiere sesión, esta función tampoco: la
+// protección es que solo se puede tocar el pedido cuyo id exacto se
+// conoce (el link).
+async function marcarItemPedido(id, sku, marcado) {
+  const { error } = await supabaseClient.rpc("marcar_item_pedido", { p_id: id, p_sku: sku, p_marcado: marcado });
+  if (error) {
+    throw error;
+  }
+}
+
 // Lista todos los pedidos para el panel admin (requiere sesión activa;
 // protegido además por la política RLS "pedidos_lectura_admin").
 async function obtenerPedidos() {

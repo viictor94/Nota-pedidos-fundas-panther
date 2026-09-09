@@ -129,6 +129,13 @@ create table if not exists public.pedidos (
 alter table public.pedidos add column if not exists estado text not null default 'nuevo';
 alter table public.pedidos add column if not exists vendedor_id uuid references public.vendedores(id) on delete set null;
 
+-- Qué variantes del pedido ya fueron controladas físicamente por la
+-- vendedora al armarlo (checkbox al lado de cada renglón en
+-- pedido.html). Se guarda como objeto {"<sku>": true/false} en vez de
+-- un array paralelo a "items", para no depender de que el orden o el
+-- índice se mantengan.
+alter table public.pedidos add column if not exists items_marcados jsonb not null default '{}'::jsonb;
+
 -- El check de "estado" se agregó sin nombre explícito en una versión
 -- anterior de este archivo (quedó autonombrado "pedidos_estado_check");
 -- se reemplaza para poder sumarle "completado" sin duplicar la regla.
@@ -247,7 +254,7 @@ $$;
 -- no es adivinable), nunca una lista.
 -- "create or replace function" no permite cambiar las columnas de un
 -- "returns table" ya existente (falla con "cannot change return type");
--- como se le suma "vendedor_nombre", hay que borrarla primero.
+-- como se le suma "items_marcados", hay que borrarla primero.
 drop function if exists public.obtener_pedido_publico(uuid);
 
 create or replace function public.obtener_pedido_publico(p_id uuid)
@@ -258,13 +265,14 @@ returns table (
   total              numeric,
   cantidad_articulos integer,
   created_at         timestamptz,
-  vendedor_nombre    text
+  vendedor_nombre    text,
+  items_marcados     jsonb
 )
 language sql
 security definer
 set search_path = public
 as $$
-  select p.cliente_nombre, p.cliente_telefono, p.items, p.total, p.cantidad_articulos, p.created_at, v.nombre_completo
+  select p.cliente_nombre, p.cliente_telefono, p.items, p.total, p.cantidad_articulos, p.created_at, v.nombre_completo, p.items_marcados
   from public.pedidos p
   left join public.vendedores v on v.id = p.vendedor_id
   where p.id = p_id;
@@ -272,6 +280,24 @@ $$;
 
 revoke all on function public.obtener_pedido_publico(uuid) from public;
 grant execute on function public.obtener_pedido_publico(uuid) to anon, authenticated;
+
+-- Permite tildar/destildar una variante puntual del pedido desde
+-- pedido.html (checklist de armado), sin exponer el resto de la fila:
+-- solo escribe dentro de "items_marcados", identificando el renglón por
+-- sku (no por índice, para no depender del orden del array "items").
+create or replace function public.marcar_item_pedido(p_id uuid, p_sku text, p_marcado boolean)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.pedidos
+  set items_marcados = jsonb_set(coalesce(items_marcados, '{}'::jsonb), array[p_sku], to_jsonb(p_marcado), true)
+  where id = p_id;
+$$;
+
+revoke all on function public.marcar_item_pedido(uuid, text, boolean) from public;
+grant execute on function public.marcar_item_pedido(uuid, text, boolean) to anon, authenticated;
 
 -- Lista liviana de vendedores para el desplegable opcional del
 -- checkout ("elegí tu vendedor/a preferido"). Los datos completos de
