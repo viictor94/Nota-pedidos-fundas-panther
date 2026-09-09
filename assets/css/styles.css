@@ -154,6 +154,49 @@ a {
   gap: 1rem;
 }
 
+/* ---------- Carruseles de destacados (Nuevos Ingresos / Promos) ---------- */
+.carousel-wrap {
+  margin-bottom: 1.75rem;
+}
+
+.carousel-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-text);
+  margin: 0 0 0.65rem;
+}
+
+.carousel-track {
+  display: flex;
+  gap: 0.85rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Las tarjetas del carrusel son las mismas .product-card (mismo look,
+   mismos carteles), solo con ancho fijo para poder desplazarse. */
+.carousel-track .product-card {
+  flex: 0 0 auto;
+  width: 150px;
+  scroll-snap-align: start;
+}
+
+.catalog-full-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-text);
+  margin: 0 0 0.75rem;
+}
+
+.catalog-load-status {
+  text-align: center;
+  color: var(--color-text-light);
+  font-size: 0.85rem;
+  margin: 1.5rem 0;
+}
+
 .product-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -540,6 +583,10 @@ a {
 @media (min-width: 640px) {
   .catalog-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .carousel-track .product-card {
+    width: 190px;
   }
 }
 

@@ -37,14 +37,26 @@
     
     <!-- Sección de Catálogo -->
     <section id="catalog-section" class="catalog-section active">
+
+      <!-- Carruseles de destacados (solo se muestran si hay productos marcados) -->
+      <div id="carousel-nuevos-wrap" class="carousel-wrap" style="display: none;">
+        <h2 class="carousel-title">🆕 Nuevos Ingresos</h2>
+        <div id="carousel-nuevos" class="carousel-track"></div>
+      </div>
+
+      <div id="carousel-promos-wrap" class="carousel-wrap" style="display: none;">
+        <h2 class="carousel-title">🔥 Promos del Día</h2>
+        <div id="carousel-promos" class="carousel-track"></div>
+      </div>
+
+      <h2 class="catalog-full-title">Catálogo Completo</h2>
       <div id="catalog-grid" class="catalog-grid">
         <!-- Los productos se insertan aquí vía JS -->
       </div>
-      <div id="load-more-container" style="text-align: center; margin-top: 2rem; margin-bottom: 1.5rem; display: none;">
-        <button type="button" id="btn-load-more" class="btn-primary" style="margin: 0 auto; padding: 0.75rem 2.25rem; border-radius: 25px; box-shadow: var(--shadow-md); font-weight: 700; text-align: center;">
-          <span>⬇️ Cargar más modelos (<span id="load-more-count">0</span> restantes)</span>
-        </button>
-      </div>
+
+      <!-- Sentinela para scroll infinito: cuando entra en pantalla se
+           cargan más productos. También muestra el mensaje de fin. -->
+      <p id="catalog-load-status" class="catalog-load-status"></p>
     </section>
 
     <!-- Sección de Checkout -->

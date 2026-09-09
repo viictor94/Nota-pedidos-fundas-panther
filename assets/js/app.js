@@ -14,7 +14,8 @@
 // Estado global
 // ---------------------------------------------------------------------
 
-const PRODUCTOS_POR_PAGINA = 8;
+const PRODUCTOS_POR_PAGINA = 8; // cuántos se muestran al cargar la página
+const INCREMENTO_SCROLL = 4; // cuántos se suman cada vez que el scroll llega al final
 
 let catalogoCompleto = []; // Productos con variantes, tal como vienen de Supabase.
 let configuracionApp = { whatsapp_vendedor: "" };
@@ -107,10 +108,7 @@ function wireEventosEstaticos() {
   document.getElementById("btn-header-cart").addEventListener("click", mostrarCheckout);
   document.getElementById("btn-terminar-pedido").addEventListener("click", mostrarCheckout);
   document.getElementById("btn-back-catalog").addEventListener("click", volverAlCatalogo);
-  document.getElementById("btn-load-more").addEventListener("click", function () {
-    productosVisibles += PRODUCTOS_POR_PAGINA;
-    renderCatalogo();
-  });
+  configurarScrollInfinito();
 
   document.getElementById("btn-close-modal").addEventListener("click", cerrarModalVariantes);
   document.getElementById("btn-modal-listo").addEventListener("click", cerrarModalVariantes);
@@ -134,6 +132,8 @@ function wireEventosEstaticos() {
 // ---------------------------------------------------------------------
 
 function renderCatalogo() {
+  renderCarruseles();
+
   const grid = document.getElementById("catalog-grid");
   while (grid.firstChild) {
     grid.removeChild(grid.firstChild);
@@ -145,9 +145,74 @@ function renderCatalogo() {
   });
 
   const restantes = catalogoCompleto.length - visibles.length;
-  const contenedorCargarMas = document.getElementById("load-more-container");
-  document.getElementById("load-more-count").textContent = String(restantes);
-  contenedorCargarMas.style.display = restantes > 0 ? "block" : "none";
+  const estado = document.getElementById("catalog-load-status");
+  if (restantes > 0) {
+    estado.textContent = "";
+  } else {
+    estado.textContent = catalogoCompleto.length > 0 ? "Viste todo el catálogo ✓" : "";
+  }
+}
+
+// Scroll infinito: en vez de un botón "Cargar más", se observa un
+// elemento sentinela al pie de la grilla; cuando entra en pantalla se
+// revela otra tanda de productos (ya están todos en memoria, no hace
+// falta pedirlos de nuevo a Supabase).
+function configurarScrollInfinito() {
+  const sentinela = document.getElementById("catalog-load-status");
+  const observador = new IntersectionObserver(function (entradas) {
+    if (entradas[0].isIntersecting) {
+      cargarMasProductos();
+    }
+  }, { rootMargin: "300px" });
+  observador.observe(sentinela);
+}
+
+function cargarMasProductos() {
+  if (productosVisibles >= catalogoCompleto.length) {
+    return;
+  }
+  productosVisibles += INCREMENTO_SCROLL;
+  renderCatalogo();
+}
+
+// Arma los carruseles horizontales de "Nuevos Ingresos" y "Promos del
+// Día" a partir de los carteles que tilda el admin; cada uno se oculta
+// si no hay ningún producto marcado.
+function renderCarruseles() {
+  renderUnCarrusel(
+    "carousel-nuevos",
+    "carousel-nuevos-wrap",
+    catalogoCompleto.filter(function (p) {
+      return p.es_nuevo;
+    })
+  );
+  renderUnCarrusel(
+    "carousel-promos",
+    "carousel-promos-wrap",
+    catalogoCompleto.filter(function (p) {
+      return p.en_promo;
+    })
+  );
+}
+
+function renderUnCarrusel(idTrack, idWrap, productos) {
+  const wrap = document.getElementById(idWrap);
+  const track = document.getElementById(idTrack);
+
+  while (track.firstChild) {
+    track.removeChild(track.firstChild);
+  }
+
+  if (productos.length === 0) {
+    wrap.style.display = "none";
+    return;
+  }
+
+  wrap.style.display = "block";
+  productos.forEach(function (producto) {
+    const tarjeta = crearTarjetaProducto(producto);
+    track.appendChild(tarjeta);
+  });
 }
 
 function crearTarjetaProducto(producto) {
