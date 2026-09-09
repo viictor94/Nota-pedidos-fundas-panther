@@ -36,6 +36,8 @@ let ultimoPedido = null;
 // ---------------------------------------------------------------------
 
 document.addEventListener("DOMContentLoaded", async function () {
+  restaurarCarritoDeSesion();
+  actualizarUiCarrito();
   wireEventosEstaticos();
 
   try {
@@ -709,7 +711,46 @@ function cambiarCantidadCarrito(producto, variante, delta) {
     };
   }
 
+  guardarCarritoEnSesion();
   actualizarUiCarrito();
+}
+
+// ---------------------------------------------------------------------
+// Persistencia del carrito (sessionStorage)
+// ---------------------------------------------------------------------
+
+// Respaldo del carrito por si el navegador termina recargando la
+// página igual (algunos celulares recargan pestañas en segundo plano,
+// o un pull-to-refresh accidental): sin esto, cualquier recarga real
+// vaciaba el pedido armado hasta ese momento y obligaba a rehacerlo.
+const CARRITO_STORAGE_KEY = "panther_carrito";
+
+function guardarCarritoEnSesion() {
+  try {
+    sessionStorage.setItem(CARRITO_STORAGE_KEY, JSON.stringify(carrito));
+  } catch (error) {
+    // sessionStorage puede fallar (modo privado, cuota); no debe frenar
+    // la compra por eso, solo se pierde el respaldo.
+  }
+}
+
+function restaurarCarritoDeSesion() {
+  try {
+    const crudo = sessionStorage.getItem(CARRITO_STORAGE_KEY);
+    if (crudo) {
+      carrito = JSON.parse(crudo);
+    }
+  } catch (error) {
+    // Si falla la lectura, se arranca con el carrito vacío de siempre.
+  }
+}
+
+function borrarCarritoDeSesion() {
+  try {
+    sessionStorage.removeItem(CARRITO_STORAGE_KEY);
+  } catch (error) {
+    // No hay nada que limpiar si sessionStorage no está disponible.
+  }
 }
 
 function cerrarModalVariantes() {
@@ -769,10 +810,21 @@ function actualizarUiCarrito() {
 // Checkout
 // ---------------------------------------------------------------------
 
-function mostrarCheckout() {
-  if (obtenerCantidadTotalCarrito() === 0) {
-    return;
-  }
+// El checkout nunca fue una "página" real (no cambia de URL), así que
+// el gesto/botón nativo de "atrás" del celular no volvía al catálogo:
+// se salía del todo del sitio o recargaba la página, perdiendo el
+// carrito armado hasta ese momento. Con history.pushState al entrar y
+// un listener de "popstate", tanto el botón "← Volver al Catálogo"
+// como el gesto nativo de atrás terminan en el mismo lugar sin recargar
+// nada (ver también CARRITO_STORAGE_KEY más abajo, que además guarda el
+// carrito por si la página llegara a recargarse igual).
+function mostrarSeccionCatalogo() {
+  document.getElementById("checkout-section").classList.remove("active");
+  document.getElementById("catalog-section").classList.add("active");
+  actualizarUiCarrito();
+}
+
+function mostrarSeccionCheckout() {
   document.getElementById("catalog-section").classList.remove("active");
   document.getElementById("checkout-section").classList.add("active");
   // El botón flotante "Terminar Pedido" no tiene sentido estando ya en
@@ -785,11 +837,35 @@ function mostrarCheckout() {
   window.scrollTo(0, 0);
 }
 
-function volverAlCatalogo() {
-  document.getElementById("checkout-section").classList.remove("active");
-  document.getElementById("catalog-section").classList.add("active");
-  actualizarUiCarrito();
+function mostrarCheckout() {
+  if (obtenerCantidadTotalCarrito() === 0) {
+    return;
+  }
+  if (!history.state || history.state.vista !== "checkout") {
+    history.pushState({ vista: "checkout" }, "", "#checkout");
+  }
+  mostrarSeccionCheckout();
 }
+
+function volverAlCatalogo() {
+  // Si se llegó acá con una entrada de "checkout" en el historial, se
+  // la descarta con history.back(): eso dispara "popstate" y termina
+  // llamando a mostrarSeccionCatalogo() de todas formas, dejando el
+  // historial del navegador prolijo (sin entradas de checkout colgadas).
+  if (history.state && history.state.vista === "checkout") {
+    history.back();
+  } else {
+    mostrarSeccionCatalogo();
+  }
+}
+
+window.addEventListener("popstate", function (evento) {
+  if (evento.state && evento.state.vista === "checkout") {
+    mostrarSeccionCheckout();
+  } else {
+    mostrarSeccionCatalogo();
+  }
+});
 
 function renderResumenCarrito() {
   const contenedor = document.getElementById("cart-summary-container");
@@ -934,6 +1010,7 @@ async function verificarStockVigente() {
     itemsSinStock.forEach(function (item) {
       delete carrito[item.varianteId];
     });
+    guardarCarritoEnSesion();
     actualizarUiCarrito();
     renderResumenCarrito();
 
@@ -1031,6 +1108,7 @@ async function compartirPedido(opciones) {
 
 function reiniciarDespuesDePedido() {
   carrito = {};
+  borrarCarritoDeSesion();
   ultimoPedido = null;
   document.getElementById("checkout-form").reset();
   // El reset() del form vacía nombre/teléfono; se vuelven a completar

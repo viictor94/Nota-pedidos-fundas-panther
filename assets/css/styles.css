@@ -518,6 +518,27 @@ a {
   color: var(--color-danger);
 }
 
+/* Caja destacada del selector de vendedor/a en el checkout: sin esto
+   quedaba igual que cualquier otro campo del form y pasaba
+   desapercibida entre nombre/teléfono. */
+.vendor-select-box {
+  background: var(--color-primary-light);
+  border: 1.5px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+}
+
+.vendor-select-box .form-label {
+  color: var(--color-primary-dark);
+  font-size: 0.95rem;
+}
+
+.vendor-select-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-light);
+}
+
 .cart-summary {
   display: flex;
   flex-direction: column;
