@@ -231,10 +231,29 @@ async function manejarSubmitConfig(evento) {
 // Sección 1: Excel de precios y stock
 // ---------------------------------------------------------------------
 
+// Con las planillas de 10 mil+ filas que sube esta empresa mayorista,
+// leer y procesar el archivo puede tardar varios segundos: sin ningún
+// aviso en pantalla, parecía que la página no hacía nada (o que se
+// había colgado). Por eso cada paso (leer, parsear, guardar en la
+// base) actualiza un cartel de estado, y se bloquea el dropzone
+// mientras tanto para no permitir una segunda subida en simultáneo.
+let subiendoExcel = false;
+
 function procesarArchivoExcel(archivo) {
+  if (subiendoExcel) {
+    return;
+  }
+  subiendoExcel = true;
+
+  const dropzone = document.getElementById("excel-dropzone");
+  dropzone.classList.add("dropzone-procesando");
+  mostrarEstadoExcel("📥 Leyendo " + archivo.name + "...");
+
   const lector = new FileReader();
+
   lector.onload = async function (evento) {
     try {
+      mostrarEstadoExcel("🔎 Interpretando las filas del archivo...");
       const datos = new Uint8Array(evento.target.result);
       const libro = XLSX.read(datos, { type: "array" });
       const primeraHoja = libro.Sheets[libro.SheetNames[0]];
@@ -247,12 +266,20 @@ function procesarArchivoExcel(archivo) {
         });
 
       if (filasNormalizadas.length === 0) {
+        mostrarEstadoExcel(null);
         mostrarToast("El archivo no tiene filas válidas con columna Codigo.", "error");
         return;
       }
 
+      mostrarEstadoExcel(
+        "🔄 Actualizando " + filasNormalizadas.length + " variantes en la base de datos... esto puede tardar unos segundos, no cierres esta pestaña."
+      );
       const actualizadas = await actualizarPreciosStockMasivo(filasNormalizadas);
+      mostrarEstadoExcel("✅ Listo: " + actualizadas + " variantes actualizadas.");
       mostrarToast(actualizadas + " variantes actualizadas correctamente.", "success");
+      window.setTimeout(function () {
+        mostrarEstadoExcel(null);
+      }, 5000);
 
       productosAdmin = await obtenerCatalogoCompleto();
       renderListaProductos(document.getElementById("search-product").value);
@@ -260,10 +287,37 @@ function procesarArchivoExcel(archivo) {
         renderDetalleProducto(productoSeleccionadoId);
       }
     } catch (error) {
+      mostrarEstadoExcel(null);
       mostrarToast("No se pudo procesar el archivo. Verificá el formato.", "error");
+    } finally {
+      subiendoExcel = false;
+      dropzone.classList.remove("dropzone-procesando");
+      document.getElementById("excel-file-input").value = "";
     }
   };
+
+  lector.onerror = function () {
+    mostrarEstadoExcel(null);
+    mostrarToast("No se pudo leer el archivo.", "error");
+    subiendoExcel = false;
+    dropzone.classList.remove("dropzone-procesando");
+  };
+
   lector.readAsArrayBuffer(archivo);
+}
+
+function mostrarEstadoExcel(texto) {
+  const nota = document.getElementById("excel-upload-status");
+  if (!nota) {
+    return;
+  }
+  if (!texto) {
+    nota.style.display = "none";
+    nota.textContent = "";
+    return;
+  }
+  nota.textContent = texto;
+  nota.style.display = "block";
 }
 
 // Busca, sin importar mayúsculas, las columnas Codigo/SKU/Precio/Stock
@@ -830,8 +884,25 @@ function crearFilaTablaVariante(variante) {
   celdaModelo.textContent = variante.modelo;
   fila.appendChild(celdaModelo);
 
+  // Editable (y no solo texto): al crear una variante nueva su precio
+  // arranca en 0 y recién se completa con la próxima subida del Excel
+  // madre (que solo actualiza SKUs que ya trae esa planilla); para no
+  // dejar a una funda nueva sin precio hasta esa próxima subida, el
+  // admin puede cargarlo a mano acá mismo.
   const celdaPrecio = document.createElement("td");
-  celdaPrecio.textContent = formatearMoneda(variante.precio_actual);
+  const inputPrecio = document.createElement("input");
+  inputPrecio.type = "number";
+  inputPrecio.step = "0.01";
+  inputPrecio.min = "0";
+  inputPrecio.className = "form-input";
+  inputPrecio.style.width = "100px";
+  inputPrecio.style.padding = "0.35rem 0.5rem";
+  inputPrecio.style.fontSize = "0.85rem";
+  inputPrecio.value = variante.precio_actual;
+  inputPrecio.addEventListener("change", function () {
+    guardarPrecioActualVariante(variante, inputPrecio);
+  });
+  celdaPrecio.appendChild(inputPrecio);
   fila.appendChild(celdaPrecio);
 
   const celdaPrecioAnterior = document.createElement("td");
@@ -881,6 +952,27 @@ function crearFilaTablaVariante(variante) {
   fila.appendChild(celdaAccion);
 
   return fila;
+}
+
+// A diferencia del precio anterior, precio_actual no admite null en la
+// base (siempre tiene que quedar un número válido): si el admin borra
+// el campo o pone algo inválido, se revierte al último valor guardado
+// en vez de dejarlo vacío.
+async function guardarPrecioActualVariante(variante, input) {
+  const valor = Number(input.value);
+  if (input.value.trim() === "" || Number.isNaN(valor) || valor < 0) {
+    input.value = variante.precio_actual;
+    mostrarToast("Ingresá un precio válido.", "error");
+    return;
+  }
+  try {
+    await actualizarVariante(variante.id, { precio_actual: valor });
+    variante.precio_actual = valor;
+    mostrarToast("Precio actualizado.", "success");
+  } catch (error) {
+    input.value = variante.precio_actual;
+    mostrarToast("No se pudo actualizar el precio.", "error");
+  }
 }
 
 // Guarda (o borra, si el campo queda vacío) el precio anterior de una

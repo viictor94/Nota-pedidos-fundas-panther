@@ -75,6 +75,11 @@
       background: #dcfce7;
       border-color: var(--color-primary-dark);
     }
+    .dropzone.dropzone-procesando {
+      pointer-events: none;
+      opacity: 0.6;
+      cursor: wait;
+    }
     .dropzone-icon {
       font-size: 2.5rem;
       margin-bottom: 0.5rem;
@@ -432,6 +437,8 @@
           <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" style="display: none;">
         </div>
 
+        <p id="excel-upload-status" style="display: none; margin: 0.75rem 0 1rem; font-size: 0.88rem; font-weight: 600; color: var(--color-primary-dark); background: var(--color-primary-light); border: 1px solid var(--color-primary); border-radius: var(--radius-md); padding: 0.75rem 1rem;"></p>
+
         <div style="background: #f8fafc; border-radius: var(--radius-md); padding: 1rem; border: 1px solid #e2e8f0;">
           <strong style="font-size: 0.85rem; color: var(--color-text);">Criterio de Stock Automático aplicado:</strong>
           <div class="rule-pill-container">
@@ -644,7 +651,7 @@
         </div>
 
         <p style="font-size: 0.8rem; color: var(--color-text-light); background: #f8fafc; padding: 0.6rem; border-radius: 6px; border: 1px solid #e2e8f0;">
-          ℹ️ <strong>Nota:</strong> Puedes cargar tantas variantes como quieras ahora (o agregar más después). El precio y el stock se calcularán automáticamente al subir la lista madre de Excel.
+          ℹ️ <strong>Nota:</strong> Puedes cargar tantas variantes como quieras ahora (o agregar más después). Arrancan con precio $0 hasta que subas la lista madre de Excel (o los edites vos a mano en la columna "Precio Actual" de la tabla).
         </p>
 
         <div class="modal-footer-sticky" style="margin-top: 0.5rem;">
@@ -675,7 +682,7 @@
         </div>
 
         <p style="font-size: 0.8rem; color: var(--color-text-light); background: #f8fafc; padding: 0.6rem; border-radius: 6px; border: 1px solid #e2e8f0;">
-          ℹ️ <strong>Nota:</strong> El precio y el stock de estas nuevas variantes se asignarán automáticamente al subir la lista madre de Excel.
+          ℹ️ <strong>Nota:</strong> Arrancan con precio $0 hasta que subas la lista madre de Excel (o los edites vos a mano en la columna "Precio Actual" de la tabla).
         </p>
 
         <div class="modal-footer-sticky" style="margin-top: 0.5rem;">

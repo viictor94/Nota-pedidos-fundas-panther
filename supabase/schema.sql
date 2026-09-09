@@ -216,29 +216,36 @@ $$;
 -- {"sku": "...", "precio": 999, "stock_cantidad": 120}.
 -- No es SECURITY DEFINER: corre con los permisos de quien la llama, así
 -- que sigue protegida por las mismas políticas RLS de "variantes".
+--
+-- Antes recorría las filas una por una con un "for ... loop" (una
+-- sentencia UPDATE por fila): con las planillas de 10 mil+ filas que
+-- sube esta empresa mayorista, eso significaba 10 mil UPDATEs
+-- separados dentro de la misma función, muy lento y sin forma de saber
+-- si seguía procesando o se había colgado. Ahora es un único UPDATE
+-- "set-based" (join contra jsonb_to_recordset), que el planner resuelve
+-- de una sola vez.
 create or replace function public.actualizar_precios_stock_masivo(p_filas jsonb)
 returns integer
 language plpgsql
 as $$
 declare
-  v_fila jsonb;
-  v_actualizadas integer := 0;
+  v_actualizadas integer;
 begin
-  for v_fila in select * from jsonb_array_elements(p_filas)
-  loop
-    update public.variantes
-      set precio_actual = coalesce((v_fila->>'precio')::numeric, precio_actual),
-          stock_cantidad = coalesce((v_fila->>'stock_cantidad')::numeric, stock_cantidad),
-          stock_estado = public.calcular_stock_estado(
-            coalesce((v_fila->>'stock_cantidad')::numeric, stock_cantidad)
-          )
-      where sku = v_fila->>'sku';
+  with filas as (
+    select
+      sku,
+      precio,
+      stock_cantidad
+    from jsonb_to_recordset(p_filas) as t(sku text, precio numeric, stock_cantidad numeric)
+  )
+  update public.variantes v
+  set precio_actual = coalesce(f.precio, v.precio_actual),
+      stock_cantidad = coalesce(f.stock_cantidad, v.stock_cantidad),
+      stock_estado = public.calcular_stock_estado(coalesce(f.stock_cantidad, v.stock_cantidad))
+  from filas f
+  where v.sku = f.sku;
 
-    if found then
-      v_actualizadas := v_actualizadas + 1;
-    end if;
-  end loop;
-
+  get diagnostics v_actualizadas = row_count;
   return v_actualizadas;
 end;
 $$;
