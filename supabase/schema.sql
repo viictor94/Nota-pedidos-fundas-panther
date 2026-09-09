@@ -76,6 +76,22 @@ create table if not exists public.app_config (
 insert into public.app_config (id) values (1)
   on conflict (id) do nothing;
 
+-- Vendedores de la empresa, agrupados por provincia en el panel admin.
+-- "numero_zeus" es el número de vendedor del sistema de facturación
+-- interno (Zeus), no un dato de Supabase: se guarda tal cual lo pasa
+-- el admin para poder identificar al vendedor en ese otro sistema.
+create table if not exists public.vendedores (
+  id              uuid primary key default gen_random_uuid(),
+  nombre_completo text not null,
+  provincia       text not null,
+  numero_zeus     text not null,
+  activo          boolean not null default true,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists vendedores_provincia_idx on public.vendedores(provincia);
+
 -- Registro/auditoría de pedidos enviados por los clientes.
 create table if not exists public.pedidos (
   id                  uuid primary key default gen_random_uuid(),
@@ -86,6 +102,15 @@ create table if not exists public.pedidos (
   cantidad_articulos  integer not null,
   created_at          timestamptz not null default now()
 );
+
+-- Estado del pedido en el panel admin: "nuevo" hasta que se descarga su
+-- Excel (ahí pasa a "asignado" automáticamente), y qué vendedor/a quedó
+-- a cargo. Se agregan con alter (en vez de solo en el create table de
+-- arriba) para que el script sea seguro de re-ejecutar sobre una base
+-- ya provisionada de antes.
+alter table public.pedidos add column if not exists estado text not null default 'nuevo'
+  check (estado in ('nuevo', 'asignado'));
+alter table public.pedidos add column if not exists vendedor_id uuid references public.vendedores(id) on delete set null;
 
 -- ---------------------------------------------------------------------
 -- updated_at automático
@@ -111,6 +136,10 @@ create trigger trg_variantes_updated before update on public.variantes
 
 drop trigger if exists trg_config_updated on public.app_config;
 create trigger trg_config_updated before update on public.app_config
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_vendedores_updated on public.vendedores;
+create trigger trg_vendedores_updated before update on public.vendedores
   for each row execute function public.set_updated_at();
 
 -- Cada vez que se toca el catálogo, refleja la fecha en app_config para
@@ -221,6 +250,7 @@ alter table public.productos enable row level security;
 alter table public.variantes enable row level security;
 alter table public.app_config enable row level security;
 alter table public.pedidos enable row level security;
+alter table public.vendedores enable row level security;
 
 create policy "productos_lectura_publica" on public.productos
   for select using (true);
@@ -245,6 +275,14 @@ create policy "pedidos_escritura_admin" on public.pedidos
   for update using (auth.role() = 'authenticated');
 create policy "pedidos_borrado_admin" on public.pedidos
   for delete using (auth.role() = 'authenticated');
+
+-- Vendedores: son datos internos de la empresa (no hace falta que el
+-- cliente los vea), así que a diferencia del catálogo van sin lectura
+-- pública, solo admin autenticado.
+create policy "vendedores_lectura_admin" on public.vendedores
+  for select using (auth.role() = 'authenticated');
+create policy "vendedores_escritura_admin" on public.vendedores
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 -- ---------------------------------------------------------------------
 -- Storage: bucket público de fotos de producto y placeholder.

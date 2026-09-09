@@ -136,13 +136,22 @@ async function obtenerPedidoPublico(id) {
 async function obtenerPedidos() {
   const { data, error } = await supabaseClient
     .from("pedidos")
-    .select("id, cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at")
+    .select("id, cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at, estado, vendedor_id")
     .order("created_at", { ascending: false });
 
   if (error) {
     throw error;
   }
   return data;
+}
+
+// Actualiza campos puntuales de un pedido (estado "nuevo"/"asignado" al
+// descargar su Excel, o la vendedora elegida en el desplegable).
+async function actualizarPedido(id, campos) {
+  const { error } = await supabaseClient.from("pedidos").update(campos).eq("id", id);
+  if (error) {
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -293,4 +302,48 @@ async function subirFotoProducto(productoId, archivo) {
 
   const { data } = supabaseClient.storage.from("assets-publicos").getPublicUrl(ruta);
   return data.publicUrl;
+}
+
+// ---------------------------------------------------------------------
+// Vendedores (panel admin, sección "Gestión Vendedores")
+// ---------------------------------------------------------------------
+
+async function obtenerVendedores() {
+  const { data, error } = await supabaseClient
+    .from("vendedores")
+    .select("id, nombre_completo, provincia, numero_zeus, activo")
+    .order("provincia", { ascending: true })
+    .order("nombre_completo", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+async function crearVendedor(datos) {
+  const { data, error } = await supabaseClient
+    .from("vendedores")
+    .insert({ nombre_completo: datos.nombreCompleto, provincia: datos.provincia, numero_zeus: datos.numeroZeus })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+async function actualizarVendedor(id, campos) {
+  const { error } = await supabaseClient.from("vendedores").update(campos).eq("id", id);
+  if (error) {
+    throw error;
+  }
+}
+
+async function eliminarVendedor(id) {
+  const { error } = await supabaseClient.from("vendedores").delete().eq("id", id);
+  if (error) {
+    throw error;
+  }
 }
