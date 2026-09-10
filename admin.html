@@ -99,14 +99,21 @@
       align-items: center;
       gap: 0.25rem;
     }
+    /* minmax(0, 1fr) en vez de 1fr: una columna de grid "1fr" sola no
+       se achica por debajo del ancho mínimo de su contenido (la tabla
+       de variantes, con varias columnas de inputs), así que en celular
+       terminaba empujando todo el panel más ancho que la pantalla. Con
+       minmax(0, ...) la columna sí se achica, y es el contenido interno
+       (la tabla, con su propio scroll horizontal) el que absorbe el
+       desborde en vez de todo el panel. */
     .product-manager-grid {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 1.5rem;
     }
     @media (min-width: 768px) {
       .product-manager-grid {
-        grid-template-columns: 360px 1fr;
+        grid-template-columns: 360px minmax(0, 1fr);
       }
     }
     .product-list-sidebar {
@@ -179,10 +186,12 @@
     .variants-table-wrap {
       max-height: 460px;
       overflow-y: auto;
+      overflow-x: auto;
       border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
     }
     .variants-table-wrap .table-variants {
+      min-width: 560px;
       margin-top: 0;
     }
     .variants-table-wrap .table-variants thead th {
