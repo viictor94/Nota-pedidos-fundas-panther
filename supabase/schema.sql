@@ -325,27 +325,12 @@ $$;
 revoke all on function public.obtener_vendedores_publico() from public;
 grant execute on function public.obtener_vendedores_publico() to anon, authenticated;
 
--- Si el cliente no elige vendedor/a en el checkout, se le asigna el que
--- tenga menos pedidos activos (sin completar) en este momento, para que
--- el trabajo quede parejo entre todos y el pedido salga más rápido.
-create or replace function public.asignar_vendedor_automatico()
-returns uuid
-language sql
-security definer
-set search_path = public
-as $$
-  select v.id
-  from public.vendedores v
-  left join public.pedidos p
-    on p.vendedor_id = v.id and p.estado <> 'completado'
-  where v.activo
-  group by v.id
-  order by count(p.id) asc, v.nombre_completo asc
-  limit 1;
-$$;
-
-revoke all on function public.asignar_vendedor_automatico() from public;
-grant execute on function public.asignar_vendedor_automatico() to anon, authenticated;
+-- Si el cliente no elige vendedor/a en el checkout, el pedido queda sin
+-- asignar (vendedor_id null) para que el admin lo asigne a mano desde
+-- el panel. Antes se auto-asignaba acá al que tenía menos pedidos
+-- activos; se borra esa función porque ya no se llama desde ningún
+-- lado (evita dejar código muerto en la base).
+drop function if exists public.asignar_vendedor_automatico();
 
 -- ---------------------------------------------------------------------
 -- Row Level Security

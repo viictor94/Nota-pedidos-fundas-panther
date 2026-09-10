@@ -938,19 +938,11 @@ async function manejarSubmitCheckout(evento) {
 
     const nombre = document.getElementById("customer-name").value.trim();
 
-    // Si el cliente no eligió vendedor/a preferido, se le asigna
-    // automáticamente el que tenga menos pedidos activos en este
-    // momento (ver asignar_vendedor_automatico en supabase/schema.sql),
-    // para que el trabajo quede parejo y el pedido salga más rápido.
+    // Si el cliente no eligió vendedor/a preferido, el pedido queda sin
+    // asignar (vendedor_id null) para que el admin lo asigne a mano
+    // desde el panel, en vez de auto-asignarlo.
     const vendedorElegido = document.getElementById("customer-vendedor").value;
-    let vendedorId = vendedorElegido || null;
-    if (!vendedorId) {
-      try {
-        vendedorId = await asignarVendedorAutomatico();
-      } catch (error) {
-        vendedorId = null;
-      }
-    }
+    const vendedorId = vendedorElegido || null;
 
     const items = obtenerItemsCarrito().map(function (item) {
       return {

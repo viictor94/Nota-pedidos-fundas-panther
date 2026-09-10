@@ -191,17 +191,6 @@ async function obtenerVendedoresPublico() {
   return data;
 }
 
-// Si el cliente no elige vendedor/a, se le asigna el que tenga menos
-// pedidos activos en este momento (ver asignar_vendedor_automatico en
-// supabase/schema.sql). Devuelve null si no hay ningún vendedor cargado.
-async function asignarVendedorAutomatico() {
-  const { data, error } = await supabaseClient.rpc("asignar_vendedor_automatico");
-  if (error) {
-    throw error;
-  }
-  return data;
-}
-
 // ---------------------------------------------------------------------
 // Autenticación de administrador (PIN = contraseña de un único
 // usuario de Supabase Auth)
