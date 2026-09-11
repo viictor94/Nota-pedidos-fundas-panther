@@ -144,12 +144,51 @@ async function marcarItemPedido(id, sku, marcado) {
   }
 }
 
+// Valida el N° de vendedor/a ingresado en "Preparar Pedido" y toma el
+// bloqueo de armado (o avisa si ya lo tiene tomado otra persona). Ver
+// iniciar_armado_pedido en supabase/schema.sql.
+async function iniciarArmadoPedido(id, numeroZeus) {
+  const { data, error } = await supabaseClient.rpc("iniciar_armado_pedido", { p_id: id, p_numero_zeus: numeroZeus });
+  if (error) {
+    throw error;
+  }
+  return data && data.length > 0 ? data[0] : { ok: false, motivo: "error" };
+}
+
+// Guarda los items (agregados/sacados por la vendedora al armar) y el
+// total recalculado. Devuelve false si el N° de vendedor es inválido o
+// si otra persona tiene el pedido tomado.
+async function actualizarItemsPedido(id, items, total, cantidadArticulos, numeroZeus) {
+  const { data, error } = await supabaseClient.rpc("actualizar_items_pedido", {
+    p_id: id,
+    p_items: items,
+    p_total: total,
+    p_cantidad_articulos: cantidadArticulos,
+    p_numero_zeus: numeroZeus,
+  });
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+// Cierra el armado del pedido y libera el bloqueo.
+async function finalizarArmadoPedido(id, numeroZeus) {
+  const { data, error } = await supabaseClient.rpc("finalizar_armado_pedido", { p_id: id, p_numero_zeus: numeroZeus });
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
 // Lista todos los pedidos para el panel admin (requiere sesión activa;
 // protegido además por la política RLS "pedidos_lectura_admin").
 async function obtenerPedidos() {
   const { data, error } = await supabaseClient
     .from("pedidos")
-    .select("id, cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at, estado, vendedor_id")
+    .select(
+      "id, cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at, estado, vendedor_id, preparado_por_id, preparado_por_nombre, armado_finalizado, armado_finalizado_por"
+    )
     .order("created_at", { ascending: false });
 
   if (error) {

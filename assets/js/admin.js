@@ -451,6 +451,23 @@ function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado,
   badgeEstado.textContent = ETIQUETAS_ESTADO_PEDIDO[pedido.estado] || pedido.estado;
   celdaEstado.appendChild(badgeEstado);
 
+  // Estado de armado (pedido.html): si alguien lo está preparando
+  // ahora mismo, o si ya lo terminó de armar, para que el admin lo vea
+  // sin tener que abrir el link.
+  if (pedido.preparado_por_id) {
+    celdaEstado.appendChild(document.createElement("br"));
+    const badgeLock = document.createElement("span");
+    badgeLock.className = "pedido-badge pedido-badge-lock";
+    badgeLock.textContent = "🔒 " + (pedido.preparado_por_nombre || "vendedor/a");
+    celdaEstado.appendChild(badgeLock);
+  } else if (pedido.armado_finalizado) {
+    celdaEstado.appendChild(document.createElement("br"));
+    const badgeArmado = document.createElement("span");
+    badgeArmado.className = "pedido-badge pedido-badge-armado";
+    badgeArmado.textContent = "✅ Armado" + (pedido.armado_finalizado_por ? " por " + pedido.armado_finalizado_por : "");
+    celdaEstado.appendChild(badgeArmado);
+  }
+
   while (celdaVendedor.firstChild) {
     celdaVendedor.removeChild(celdaVendedor.firstChild);
   }
@@ -535,6 +552,28 @@ function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado,
       cambiarEstadoPedido(pedido.id, "asignado");
     });
     celdaAcciones.appendChild(btnReabrir);
+  }
+
+  if (pedido.preparado_por_id) {
+    const btnLiberar = document.createElement("button");
+    btnLiberar.type = "button";
+    btnLiberar.className = "btn-secondary";
+    btnLiberar.style.width = "auto";
+    btnLiberar.style.padding = "0.35rem 0.75rem";
+    btnLiberar.style.fontSize = "0.8rem";
+    btnLiberar.textContent = "🔓 Liberar";
+    btnLiberar.addEventListener("click", function () {
+      confirmarAccionDoble(btnLiberar, "¿Liberar?", async function () {
+        try {
+          await actualizarPedido(pedido.id, { preparado_por_id: null, preparado_por_nombre: null });
+          await refrescarPedidos();
+          mostrarToast("Bloqueo de armado liberado.", "success");
+        } catch (error) {
+          mostrarToast("No se pudo liberar el pedido.", "error");
+        }
+      });
+    });
+    celdaAcciones.appendChild(btnLiberar);
   }
 
   const btnEditar = document.createElement("button");

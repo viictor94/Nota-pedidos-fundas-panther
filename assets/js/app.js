@@ -1153,19 +1153,23 @@ function construirTextoWhatsapp(pedido) {
   // suma provincia/local: no se guarda en la tabla "pedidos", así que
   // este mensaje es la única forma en que le llega a la vendedora.
   const clienteGuardado = obtenerClienteGuardado();
-  let datosExtra = "";
+  let lineaExtra = "";
   if (clienteGuardado && clienteGuardado.tipo === "nuevo") {
-    datosExtra = " Soy cliente nuevo, provincia: " + clienteGuardado.provincia + (clienteGuardado.local ? ", local: " + clienteGuardado.local : "") + ".";
+    lineaExtra =
+      "\n* Soy cliente nuevo — Provincia: " + clienteGuardado.provincia + (clienteGuardado.local ? ", Local: " + clienteGuardado.local : "");
   }
 
   return (
-    "Hola! Armé mi pedido por la web de fundas. Te dejo mis datos: nombre: " +
+    "Hola, acabo de hacer un pedido de fundas en Panther Distribuciones.\n\n" +
+    "Te dejo mis datos:\n\n" +
+    "* Nombre completo: " +
     pedido.clienteNombre +
-    ", teléfono: " +
+    "\n* Teléfono: " +
     pedido.clienteTelefono +
-    "." +
-    datosExtra +
-    " Aguardo así me confirmás stock y abono el total. Podés ver el detalle acá: " +
+    lineaExtra +
+    "\n\n" +
+    "Aguardo así me confirmás que tenés stock de todo, así procedo a realizar el pago.\n" +
+    "Acá está el link del pedido: " +
     url
   );
 }

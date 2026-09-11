@@ -136,6 +136,45 @@ alter table public.pedidos add column if not exists vendedor_id uuid references 
 -- índice se mantengan.
 alter table public.pedidos add column if not exists items_marcados jsonb not null default '{}'::jsonb;
 
+-- "items" puede editarse desde pedido.html al armar el pedido (agregar
+-- o sacar fundas que no había en stock), así que se guarda una copia
+-- congelada de lo que pidió el cliente originalmente en
+-- "items_original" (se completa sola vía trigger al insertar, ver más
+-- abajo) para poder avisar si hubo cambios respecto del pedido real.
+alter table public.pedidos add column if not exists items_original jsonb;
+
+-- Bloqueo de armado: qué vendedor/a está preparando ahora mismo este
+-- pedido (identificado con su N° de Zeus al entrar a "Preparar
+-- Pedido"), para que otra persona que entre mientras tanto solo pueda
+-- verlo, no editarlo. Se libera automáticamente al finalizar el
+-- armado (ver finalizar_armado_pedido).
+alter table public.pedidos add column if not exists preparado_por_id uuid references public.vendedores(id) on delete set null;
+alter table public.pedidos add column if not exists preparado_por_nombre text;
+
+-- Una vez que la vendedora termina de controlar/editar el pedido y
+-- confirma el cartel de "finalizar armado", queda con detalle de qué
+-- quedó en stock (tildado) y qué no (sin tildar) para mostrárselo al
+-- cliente en pedido.html.
+alter table public.pedidos add column if not exists armado_finalizado boolean not null default false;
+alter table public.pedidos add column if not exists armado_finalizado_por text;
+
+-- Congela "items_original" en el momento de crear el pedido (el
+-- cliente inserta directo desde el checkout): así después se puede
+-- comparar contra "items" para saber si la vendedora modificó algo.
+create or replace function public.congelar_items_original()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.items_original = new.items;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_pedidos_items_original on public.pedidos;
+create trigger trg_pedidos_items_original before insert on public.pedidos
+  for each row execute function public.congelar_items_original();
+
 -- El check de "estado" se agregó sin nombre explícito en una versión
 -- anterior de este archivo (quedó autonombrado "pedidos_estado_check");
 -- se reemplaza para poder sumarle "completado" sin duplicar la regla.
@@ -261,25 +300,32 @@ $$;
 -- no es adivinable), nunca una lista.
 -- "create or replace function" no permite cambiar las columnas de un
 -- "returns table" ya existente (falla con "cannot change return type");
--- como se le suma "items_marcados", hay que borrarla primero.
+-- como se le suman columnas de armado/bloqueo, hay que borrarla primero.
 drop function if exists public.obtener_pedido_publico(uuid);
 
 create or replace function public.obtener_pedido_publico(p_id uuid)
 returns table (
-  cliente_nombre     text,
-  cliente_telefono   text,
-  items              jsonb,
-  total              numeric,
-  cantidad_articulos integer,
-  created_at         timestamptz,
-  vendedor_nombre    text,
-  items_marcados     jsonb
+  cliente_nombre       text,
+  cliente_telefono     text,
+  items                jsonb,
+  items_original       jsonb,
+  total                numeric,
+  cantidad_articulos   integer,
+  created_at           timestamptz,
+  vendedor_nombre      text,
+  items_marcados       jsonb,
+  preparado_por_id     uuid,
+  preparado_por_nombre text,
+  armado_finalizado    boolean,
+  armado_finalizado_por text
 )
 language sql
 security definer
 set search_path = public
 as $$
-  select p.cliente_nombre, p.cliente_telefono, p.items, p.total, p.cantidad_articulos, p.created_at, v.nombre_completo, p.items_marcados
+  select p.cliente_nombre, p.cliente_telefono, p.items, p.items_original, p.total, p.cantidad_articulos,
+         p.created_at, v.nombre_completo, p.items_marcados,
+         p.preparado_por_id, p.preparado_por_nombre, p.armado_finalizado, p.armado_finalizado_por
   from public.pedidos p
   left join public.vendedores v on v.id = p.vendedor_id
   where p.id = p_id;
@@ -287,6 +333,146 @@ $$;
 
 revoke all on function public.obtener_pedido_publico(uuid) from public;
 grant execute on function public.obtener_pedido_publico(uuid) to anon, authenticated;
+
+-- Valida el N° de Zeus ingresado en "Preparar Pedido" contra
+-- "vendedores" y, si nadie más lo está preparando (o ya lo estaba
+-- preparando esa misma persona), toma el bloqueo. Si otra persona ya
+-- lo tiene tomado, avisa quién es sin permitir editar.
+create or replace function public.iniciar_armado_pedido(p_id uuid, p_numero_zeus text)
+returns table (
+  ok              boolean,
+  motivo          text,
+  vendedor_id     uuid,
+  vendedor_nombre text,
+  bloqueado_por   text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_vendedor_id     uuid;
+  v_vendedor_nombre text;
+  v_pedido          record;
+begin
+  select id, nombre_completo into v_vendedor_id, v_vendedor_nombre
+  from public.vendedores
+  where activo and trim(numero_zeus) = trim(p_numero_zeus)
+  limit 1;
+
+  if v_vendedor_id is null then
+    return query select false, 'numero_invalido', null::uuid, null::text, null::text;
+    return;
+  end if;
+
+  select preparado_por_id, preparado_por_nombre into v_pedido
+  from public.pedidos where id = p_id;
+
+  if not found then
+    return query select false, 'pedido_inexistente', null::uuid, null::text, null::text;
+    return;
+  end if;
+
+  if v_pedido.preparado_por_id is not null and v_pedido.preparado_por_id <> v_vendedor_id then
+    return query select false, 'bloqueado', v_vendedor_id, v_vendedor_nombre, v_pedido.preparado_por_nombre;
+    return;
+  end if;
+
+  update public.pedidos
+  set preparado_por_id = v_vendedor_id, preparado_por_nombre = v_vendedor_nombre
+  where id = p_id;
+
+  return query select true, 'ok', v_vendedor_id, v_vendedor_nombre, null::text;
+end;
+$$;
+
+revoke all on function public.iniciar_armado_pedido(uuid, text) from public;
+grant execute on function public.iniciar_armado_pedido(uuid, text) to anon, authenticated;
+
+-- Guarda los items editados (agregados/sacados) y el total recalculado
+-- mientras se arma el pedido. Vuelve a validar el N° de Zeus, y si el
+-- pedido está tomado por otra persona no permite guardar (protege
+-- contra una pestaña vieja que quedó abierta).
+create or replace function public.actualizar_items_pedido(
+  p_id uuid,
+  p_items jsonb,
+  p_total numeric,
+  p_cantidad_articulos integer,
+  p_numero_zeus text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_vendedor_id uuid;
+  v_pedido      record;
+begin
+  select id into v_vendedor_id
+  from public.vendedores
+  where activo and trim(numero_zeus) = trim(p_numero_zeus)
+  limit 1;
+
+  if v_vendedor_id is null then
+    return false;
+  end if;
+
+  select preparado_por_id into v_pedido from public.pedidos where id = p_id;
+  if not found then
+    return false;
+  end if;
+
+  if v_pedido.preparado_por_id is not null and v_pedido.preparado_por_id <> v_vendedor_id then
+    return false;
+  end if;
+
+  update public.pedidos
+  set items = p_items, total = p_total, cantidad_articulos = p_cantidad_articulos
+  where id = p_id;
+
+  return true;
+end;
+$$;
+
+revoke all on function public.actualizar_items_pedido(uuid, jsonb, numeric, integer, text) from public;
+grant execute on function public.actualizar_items_pedido(uuid, jsonb, numeric, integer, text) to anon, authenticated;
+
+-- Cierra el armado: marca armado_finalizado y libera el bloqueo (para
+-- que, si hace falta corregir algo después, cualquiera pueda volver a
+-- entrar a "Preparar Pedido" sin quedar trabado por esta sesión).
+create or replace function public.finalizar_armado_pedido(p_id uuid, p_numero_zeus text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_vendedor_id     uuid;
+  v_vendedor_nombre text;
+begin
+  select id, nombre_completo into v_vendedor_id, v_vendedor_nombre
+  from public.vendedores
+  where activo and trim(numero_zeus) = trim(p_numero_zeus)
+  limit 1;
+
+  if v_vendedor_id is null then
+    return false;
+  end if;
+
+  update public.pedidos
+  set armado_finalizado = true,
+      armado_finalizado_por = v_vendedor_nombre,
+      preparado_por_id = null,
+      preparado_por_nombre = null
+  where id = p_id;
+
+  return true;
+end;
+$$;
+
+revoke all on function public.finalizar_armado_pedido(uuid, text) from public;
+grant execute on function public.finalizar_armado_pedido(uuid, text) to anon, authenticated;
 
 -- Permite tildar/destildar una variante puntual del pedido desde
 -- pedido.html (checklist de armado), sin exponer el resto de la fila:
