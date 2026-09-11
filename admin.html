@@ -249,11 +249,13 @@
       background: #dbeafe;
       color: #1e40af;
     }
-    .reporte-vendedor-group {
-      margin-bottom: 1.25rem;
+    /* Fila de vendedor/a plegable: header siempre visible, el detalle
+       (últimos pedidos + descarga de historial) se abre al tocarla. */
+    .reporte-vendedor-row {
       border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
-      padding: 0.85rem 1rem;
+      margin-bottom: 0.6rem;
+      overflow: hidden;
     }
     .reporte-vendedor-header {
       display: flex;
@@ -261,23 +263,76 @@
       align-items: center;
       flex-wrap: wrap;
       gap: 0.5rem;
-      margin-bottom: 0.5rem;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      background: #fff;
+      border: none;
+      width: 100%;
+      text-align: left;
+      font-family: inherit;
+    }
+    .reporte-vendedor-header:hover {
+      background: #f9fafb;
+    }
+    .reporte-vendedor-nombre-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
     }
     .reporte-vendedor-nombre {
       font-weight: 700;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
+      color: var(--color-text);
+    }
+    .reporte-vendedor-provincia {
+      font-size: 0.75rem;
+      color: var(--color-text-light);
     }
     .reporte-vendedor-conteo {
       font-size: 0.78rem;
       color: var(--color-text-light);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
-    .reporte-pedido-pendiente {
+    .reporte-vendedor-flecha {
+      display: inline-block;
+      transition: transform 0.15s;
+    }
+    .reporte-vendedor-row.expandido .reporte-vendedor-flecha {
+      transform: rotate(90deg);
+    }
+    .reporte-vendedor-body {
+      display: none;
+      padding: 0.25rem 1rem 1rem;
+      border-top: 1px solid var(--color-border);
+    }
+    .reporte-vendedor-row.expandido .reporte-vendedor-body {
+      display: block;
+    }
+    .reporte-pedido-fila {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       gap: 0.5rem;
       font-size: 0.82rem;
-      padding: 0.35rem 0;
-      border-top: 1px dashed var(--color-border);
+      padding: 0.45rem 0;
+      border-bottom: 1px dashed var(--color-border);
+    }
+    .reporte-descarga-box {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--color-border);
+      font-size: 0.82rem;
+    }
+    .reporte-descarga-box input[type="date"] {
+      padding: 0.3rem 0.4rem;
+      font-size: 0.8rem;
     }
 
     /* ---------- Vendedores agrupados por provincia ---------- */
@@ -572,11 +627,10 @@
       <!-- PESTAÑA: GESTIÓN PEDIDOS -->
       <div id="tab-pedidos" class="admin-tab-panel">
         <section class="admin-card">
-          <h2>🧾 Pedidos Recibidos</h2>
+          <h2>🟢 Pedidos Abiertos</h2>
           <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.95rem;">
-            Pedidos armados por clientes desde la web. Un pedido queda <strong>🆕 Nuevo</strong> hasta que se descarga
-            su Excel; al descargarlo pasa a <strong>✅ Asignado</strong>, y una vez que la vendedora cobró/entregó se
-            marca <strong>💰 Completado</strong>.
+            Pedidos que todavía requieren acción: <strong>🆕 Nuevo</strong> hasta que se descarga su Excel (ahí pasa a
+            <strong>✅ Asignado</strong>). Al marcarlos <strong>💰 Completado</strong> pasan al historial de abajo.
           </p>
           <div style="overflow-x: auto;">
             <table class="table-variants">
@@ -592,21 +646,54 @@
                   <th>Acciones</th>
                 </tr>
               </thead>
-              <tbody id="orders-table-body">
+              <tbody id="orders-table-body-abiertos">
                 <!-- Filas generadas vía JS -->
               </tbody>
             </table>
+            <p id="orders-abiertos-vacio" style="display: none; color: var(--color-text-light); font-size: 0.9rem; padding: 1rem 0; text-align: center;">
+              No hay pedidos abiertos por el momento. 🎉
+            </p>
+          </div>
+        </section>
+
+        <section class="admin-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <h2 style="margin-bottom: 0;">💰 Historial de Completados</h2>
+            <button type="button" id="btn-toggle-completados" class="btn-secondary" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+              Mostrar
+            </button>
+          </div>
+          <div id="orders-completados-wrap" style="display: none; overflow-x: auto; margin-top: 0.75rem;">
+            <table class="table-variants">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Teléfono</th>
+                  <th>Artículos</th>
+                  <th>Total</th>
+                  <th>Estado</th>
+                  <th>Vendedor/a</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="orders-table-body-completados">
+                <!-- Filas generadas vía JS -->
+              </tbody>
+            </table>
+            <p id="orders-completados-vacio" style="display: none; color: var(--color-text-light); font-size: 0.9rem; padding: 1rem 0; text-align: center;">
+              Todavía no se completó ningún pedido.
+            </p>
           </div>
         </section>
 
         <section class="admin-card">
           <h2>📊 Reporte por Vendedor/a</h2>
           <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.95rem;">
-            Pedidos asignados a cada vendedor/a, para corroborar que se hayan cobrado o entregado y no queden
-            colgados en "Asignado".
+            Tocá un vendedor/a para ver sus últimos pedidos, o descargar su historial completo en Excel.
           </p>
           <div id="reporte-vendedores">
-            <!-- Grupos generados vía JS -->
+            <!-- Filas generadas vía JS -->
           </div>
         </section>
       </div>

@@ -46,6 +46,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     configuracionApp = config;
     actualizarTextoUltimaActualizacion(config.catalogo_actualizado_en);
     renderCatalogo();
+    // En pantallas anchas (PC, grilla de 5 columnas) la primera tanda de
+    // productos puede no llegar a llenar el alto de la ventana: hay que
+    // seguir completando antes de esperar a que el usuario scrollee.
+    seguirCargandoSiSentinelaVisible();
   } catch (error) {
     mostrarErrorCatalogo();
   } finally {
@@ -301,7 +305,30 @@ function cargarMasProductos() {
     productosVisibles += INCREMENTO_SCROLL;
     cargandoMasProductos = false;
     renderCatalogo();
+    seguirCargandoSiSentinelaVisible();
   }, 350);
+}
+
+// IntersectionObserver solo dispara su callback cuando el sentinela
+// CRUZA el borde de la pantalla (pasa de no visible a visible o
+// viceversa), no cada vez que sigue visible. En pantallas anchas de PC
+// (grilla de 5 columnas) una tanda de 4-8 productos no siempre alcanza
+// a llenar el alto de la ventana: el sentinela queda visible desde el
+// principio y, tras cargar una tanda, puede seguir estando visible sin
+// que eso cuente como un cruce nuevo, así que el observer no vuelve a
+// avisar y el catálogo queda "trabado" aunque el usuario siga
+// scrolleando. Por eso, después de cada tanda, se chequea a mano si el
+// sentinela sigue a la vista y, de ser así, se seguir cargando.
+function seguirCargandoSiSentinelaVisible() {
+  const sentinela = document.getElementById("catalog-load-status");
+  if (!sentinela) {
+    return;
+  }
+  const rect = sentinela.getBoundingClientRect();
+  const visible = rect.top < window.innerHeight + 300 && rect.bottom > 0;
+  if (visible) {
+    cargarMasProductos();
+  }
 }
 
 // Estado de cada carrusel 3D (coverflow): qué producto está al frente

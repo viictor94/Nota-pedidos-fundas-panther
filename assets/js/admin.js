@@ -109,6 +109,14 @@ function wireEventosEstaticos() {
 
   document.getElementById("form-add-vendedor").addEventListener("submit", manejarSubmitAgregarVendedor);
 
+  document.getElementById("btn-toggle-completados").addEventListener("click", function () {
+    const wrap = document.getElementById("orders-completados-wrap");
+    const btn = document.getElementById("btn-toggle-completados");
+    const mostrando = wrap.style.display !== "none";
+    wrap.style.display = mostrando ? "none" : "block";
+    btn.textContent = mostrando ? "Mostrar" : "Ocultar";
+  });
+
   configurarTabsAdmin();
 }
 
@@ -194,7 +202,7 @@ async function cargarDatosAdmin() {
     vendedoresAdmin = vendedores;
     pedidosAdmin = pedidos;
     renderListaProductos("");
-    renderTablaPedidos(pedidosAdmin);
+    renderTablasPedidos(pedidosAdmin);
     renderReporteVendedores(pedidosAdmin);
     renderVendedoresAgrupados();
   } catch (error) {
@@ -202,12 +210,13 @@ async function cargarDatosAdmin() {
   }
 }
 
-// Vuelve a pedir los pedidos a Supabase y refresca tanto la tabla como
-// el reporte por vendedor/a, para que ambos siempre reflejen el mismo
-// estado (evita que uno quede desactualizado tras una acción puntual).
+// Vuelve a pedir los pedidos a Supabase y refresca tanto las tablas
+// como el reporte por vendedor/a, para que todo siempre refleje el
+// mismo estado (evita que algo quede desactualizado tras una acción
+// puntual, como completar un pedido).
 async function refrescarPedidos() {
   pedidosAdmin = await obtenerPedidos();
-  renderTablaPedidos(pedidosAdmin);
+  renderTablasPedidos(pedidosAdmin);
   renderReporteVendedores(pedidosAdmin);
 }
 
@@ -354,8 +363,24 @@ function normalizarFilaExcelPrecios(fila) {
 // Sección 3: Pedidos recibidos
 // ---------------------------------------------------------------------
 
-function renderTablaPedidos(pedidos) {
-  const cuerpo = document.getElementById("orders-table-body");
+// Separa los pedidos "abiertos" (nuevo/asignado, todavía requieren
+// alguna acción) de los "completados" (ya cobrados/entregados) en dos
+// tablas distintas, para no tener que scrollear el historial completo
+// buscando lo que sigue pendiente.
+function renderTablasPedidos(pedidos) {
+  const abiertos = pedidos.filter(function (p) {
+    return p.estado !== "completado";
+  });
+  const completados = pedidos.filter(function (p) {
+    return p.estado === "completado";
+  });
+
+  renderTablaPedidos(abiertos, "orders-table-body-abiertos", "orders-abiertos-vacio");
+  renderTablaPedidos(completados, "orders-table-body-completados", "orders-completados-vacio");
+}
+
+function renderTablaPedidos(pedidos, idTbody, idMensajeVacio) {
+  const cuerpo = document.getElementById(idTbody);
   while (cuerpo.firstChild) {
     cuerpo.removeChild(cuerpo.firstChild);
   }
@@ -363,6 +388,11 @@ function renderTablaPedidos(pedidos) {
   pedidos.forEach(function (pedido) {
     cuerpo.appendChild(crearFilaPedido(pedido));
   });
+
+  const mensajeVacio = document.getElementById(idMensajeVacio);
+  if (mensajeVacio) {
+    mensajeVacio.style.display = pedidos.length === 0 ? "block" : "none";
+  }
 }
 
 function crearFilaPedido(pedido) {
@@ -685,103 +715,226 @@ async function guardarVendedorPedido(pedidoId, vendedorId) {
 }
 
 // ---------------------------------------------------------------------
-// Reporte por vendedor/a: qué pedidos tiene cada uno y cuáles quedaron
-// pendientes de cobro/entrega (no completados), para no perderles el
-// rastro cuando quedan "colgados" en Asignado.
+// Reporte por vendedor/a: en vez de listar pedidos sueltos, se lista
+// un renglón por vendedor/a (todos, tengan o no pedidos todavía). Al
+// tocar uno se despliegan sus últimos 5 pedidos (en cualquier estado,
+// no solo pendientes) y un control para descargar su historial
+// completo en Excel, filtrado por rango de fechas si se quiere.
 // ---------------------------------------------------------------------
+
+const CANTIDAD_ULTIMOS_PEDIDOS_REPORTE = 5;
 
 function renderReporteVendedores(pedidos) {
   const contenedor = document.getElementById("reporte-vendedores");
+  // Recordar qué vendedor/a estaba desplegado antes de re-renderizar
+  // (por ejemplo, tras asignarle un pedido nuevo), para no cerrarlo de
+  // golpe en la cara del admin.
+  const expandidoPrevio = contenedor.querySelector(".reporte-vendedor-row.expandido");
+  const vendedorIdExpandido = expandidoPrevio ? expandidoPrevio.dataset.vendedorId : null;
+
   while (contenedor.firstChild) {
     contenedor.removeChild(contenedor.firstChild);
   }
 
-  const conVendedor = pedidos.filter(function (p) {
-    return p.vendedor_id;
-  });
-
-  if (conVendedor.length === 0) {
+  if (vendedoresAdmin.length === 0) {
     const vacio = document.createElement("p");
     vacio.style.color = "var(--color-text-light)";
     vacio.style.fontSize = "0.9rem";
-    vacio.textContent = "Todavía no hay pedidos asignados a ningún vendedor/a.";
+    vacio.textContent = "Todavía no cargaste ningún vendedor/a (pestaña Gestión Vendedores).";
     contenedor.appendChild(vacio);
     return;
   }
 
   const porVendedor = {};
-  conVendedor.forEach(function (pedido) {
+  pedidos.forEach(function (pedido) {
+    if (!pedido.vendedor_id) return;
     if (!porVendedor[pedido.vendedor_id]) {
       porVendedor[pedido.vendedor_id] = [];
     }
     porVendedor[pedido.vendedor_id].push(pedido);
   });
 
-  Object.keys(porVendedor).forEach(function (vendedorId) {
-    contenedor.appendChild(crearGrupoReporteVendedor(vendedorId, porVendedor[vendedorId]));
+  vendedoresAdmin.forEach(function (vendedor) {
+    const pedidosVendedor = (porVendedor[vendedor.id] || []).slice().sort(function (a, b) {
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+    const fila = crearFilaReporteVendedor(vendedor, pedidosVendedor);
+    if (vendedor.id === vendedorIdExpandido) {
+      fila.classList.add("expandido");
+    }
+    contenedor.appendChild(fila);
   });
 }
 
-function crearGrupoReporteVendedor(vendedorId, pedidosVendedor) {
-  const vendedor = vendedoresAdmin.find(function (v) {
-    return v.id === vendedorId;
-  });
-  const nombreVendedor = vendedor ? vendedor.nombre_completo + " (" + vendedor.provincia + ")" : "Vendedor/a eliminado/a";
+function crearFilaReporteVendedor(vendedor, pedidosVendedor) {
   const pendientes = pedidosVendedor.filter(function (p) {
     return p.estado !== "completado";
   });
-  const completados = pedidosVendedor.length - pendientes.length;
 
-  const grupo = document.createElement("div");
-  grupo.className = "reporte-vendedor-group";
+  const fila = document.createElement("div");
+  fila.className = "reporte-vendedor-row";
+  fila.dataset.vendedorId = vendedor.id;
 
-  const header = document.createElement("div");
+  const header = document.createElement("button");
+  header.type = "button";
   header.className = "reporte-vendedor-header";
 
+  const nombreBox = document.createElement("div");
+  nombreBox.className = "reporte-vendedor-nombre-box";
   const nombre = document.createElement("span");
   nombre.className = "reporte-vendedor-nombre";
-  nombre.textContent = nombreVendedor;
-  header.appendChild(nombre);
+  nombre.textContent = vendedor.nombre_completo;
+  nombreBox.appendChild(nombre);
+  const provincia = document.createElement("span");
+  provincia.className = "reporte-vendedor-provincia";
+  provincia.textContent = vendedor.provincia;
+  nombreBox.appendChild(provincia);
+  header.appendChild(nombreBox);
 
   const conteo = document.createElement("span");
   conteo.className = "reporte-vendedor-conteo";
-  conteo.textContent =
-    pedidosVendedor.length + " asignados · " + completados + " completados · " + pendientes.length + " pendientes";
+  const textoConteo = document.createElement("span");
+  textoConteo.textContent =
+    pedidosVendedor.length + " pedido" + (pedidosVendedor.length === 1 ? "" : "s") +
+    (pendientes.length > 0 ? " · " + pendientes.length + " pendiente" + (pendientes.length === 1 ? "" : "s") : "");
+  conteo.appendChild(textoConteo);
+  const flecha = document.createElement("span");
+  flecha.className = "reporte-vendedor-flecha";
+  flecha.textContent = "▸";
+  conteo.appendChild(flecha);
   header.appendChild(conteo);
 
-  grupo.appendChild(header);
+  header.addEventListener("click", function () {
+    fila.classList.toggle("expandido");
+  });
+  fila.appendChild(header);
 
-  if (pendientes.length === 0) {
-    const ok = document.createElement("p");
-    ok.style.margin = "0";
-    ok.style.fontSize = "0.82rem";
-    ok.style.color = "var(--color-text-light)";
-    ok.textContent = "✅ Sin pedidos pendientes de cobro/entrega.";
-    grupo.appendChild(ok);
+  const body = document.createElement("div");
+  body.className = "reporte-vendedor-body";
+
+  if (pedidosVendedor.length === 0) {
+    const vacio = document.createElement("p");
+    vacio.style.margin = "0.5rem 0 0";
+    vacio.style.fontSize = "0.82rem";
+    vacio.style.color = "var(--color-text-light)";
+    vacio.textContent = "Todavía no tiene pedidos asignados.";
+    body.appendChild(vacio);
   } else {
-    pendientes.forEach(function (pedido) {
-      grupo.appendChild(crearFilaReportePendiente(pedido));
+    const titulo = document.createElement("p");
+    titulo.style.margin = "0.5rem 0 0.25rem";
+    titulo.style.fontSize = "0.78rem";
+    titulo.style.color = "var(--color-text-light)";
+    titulo.textContent = "Últimos " + Math.min(CANTIDAD_ULTIMOS_PEDIDOS_REPORTE, pedidosVendedor.length) + " pedidos:";
+    body.appendChild(titulo);
+
+    pedidosVendedor.slice(0, CANTIDAD_ULTIMOS_PEDIDOS_REPORTE).forEach(function (pedido) {
+      body.appendChild(crearFilaReportePedido(pedido));
     });
   }
 
-  return grupo;
+  body.appendChild(crearControlDescargaHistorial(vendedor, pedidosVendedor));
+
+  fila.appendChild(body);
+  return fila;
 }
 
-function crearFilaReportePendiente(pedido) {
+function crearFilaReportePedido(pedido) {
   const fila = document.createElement("div");
-  fila.className = "reporte-pedido-pendiente";
+  fila.className = "reporte-pedido-fila";
 
   const info = document.createElement("span");
   info.textContent =
-    pedido.cliente_nombre + " — " + formatearMoneda(pedido.total) + " (" + (ETIQUETAS_ESTADO_PEDIDO[pedido.estado] || pedido.estado) + ")";
+    new Date(pedido.created_at).toLocaleDateString("es-AR") + " — " + pedido.cliente_nombre + " — " + formatearMoneda(pedido.total);
   fila.appendChild(info);
 
-  const fecha = document.createElement("span");
-  fecha.style.color = "var(--color-text-light)";
-  fecha.textContent = new Date(pedido.created_at).toLocaleDateString("es-AR");
-  fila.appendChild(fecha);
+  const derecha = document.createElement("span");
+  derecha.style.display = "flex";
+  derecha.style.alignItems = "center";
+  derecha.style.gap = "0.5rem";
 
+  const badge = document.createElement("span");
+  badge.className = "pedido-badge " + pedido.estado;
+  badge.textContent = ETIQUETAS_ESTADO_PEDIDO[pedido.estado] || pedido.estado;
+  derecha.appendChild(badge);
+
+  const enlaceVer = document.createElement("a");
+  enlaceVer.href = "pedido.html?id=" + pedido.id;
+  enlaceVer.target = "_blank";
+  enlaceVer.rel = "noopener";
+  enlaceVer.textContent = "👁️ Ver";
+  derecha.appendChild(enlaceVer);
+
+  fila.appendChild(derecha);
   return fila;
+}
+
+// Control de "Desde/Hasta" + botón de descarga del historial completo
+// de un vendedor/a en Excel (no solo los últimos 5 que se ven en
+// pantalla). Sin fechas cargadas, descarga todo el historial.
+function crearControlDescargaHistorial(vendedor, pedidosVendedor) {
+  const box = document.createElement("div");
+  box.className = "reporte-descarga-box";
+
+  const labelDesde = document.createElement("label");
+  labelDesde.textContent = "Desde";
+  const inputDesde = document.createElement("input");
+  inputDesde.type = "date";
+  inputDesde.className = "form-input";
+
+  const labelHasta = document.createElement("label");
+  labelHasta.textContent = "Hasta";
+  const inputHasta = document.createElement("input");
+  inputHasta.type = "date";
+  inputHasta.className = "form-input";
+
+  const btnDescargar = document.createElement("button");
+  btnDescargar.type = "button";
+  btnDescargar.className = "btn-secondary";
+  btnDescargar.style.width = "auto";
+  btnDescargar.style.padding = "0.35rem 0.75rem";
+  btnDescargar.style.fontSize = "0.8rem";
+  btnDescargar.textContent = "📥 Descargar historial de pedidos de este vendedor/a";
+  btnDescargar.addEventListener("click", function () {
+    descargarHistorialVendedor(vendedor, pedidosVendedor, inputDesde.value, inputHasta.value);
+  });
+
+  box.appendChild(labelDesde);
+  box.appendChild(inputDesde);
+  box.appendChild(labelHasta);
+  box.appendChild(inputHasta);
+  box.appendChild(btnDescargar);
+
+  return box;
+}
+
+// Filtra por rango de fechas (si se cargó alguna) y genera el Excel
+// con excel-generator.js. "hasta" incluye el día completo (23:59:59),
+// para que cargar la misma fecha en desde/hasta traiga ese día entero.
+function descargarHistorialVendedor(vendedor, pedidosVendedor, desdeTexto, hastaTexto) {
+  const desde = desdeTexto ? new Date(desdeTexto + "T00:00:00") : null;
+  const hasta = hastaTexto ? new Date(hastaTexto + "T23:59:59") : null;
+
+  const filtrados = pedidosVendedor.filter(function (pedido) {
+    const fecha = new Date(pedido.created_at);
+    if (desde && fecha < desde) return false;
+    if (hasta && fecha > hasta) return false;
+    return true;
+  });
+
+  if (filtrados.length === 0) {
+    mostrarToast("No hay pedidos de este vendedor/a en ese rango de fechas.", "error");
+    return;
+  }
+
+  const archivo = generarExcelHistorialVendedor(vendedor, filtrados);
+  const url = URL.createObjectURL(archivo);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = archivo.name;
+  document.body.appendChild(enlace);
+  enlace.click();
+  document.body.removeChild(enlace);
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------
