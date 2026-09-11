@@ -48,6 +48,16 @@ function generarExcelPedido(pedido) {
   return new File([blob], nombreArchivo, { type: blob.type });
 }
 
+// Etiqueta de estado para el Excel: en texto plano (sin emoji, que en
+// Excel puede verse inconsistente entre columnas) y distinguiendo
+// "Abierto" de "Completado" a simple vista, que es lo que se quiere
+// poder filtrar/leer rápido en la planilla.
+const ETIQUETAS_ESTADO_EXCEL = {
+  nuevo: "Abierto (Nuevo)",
+  asignado: "Abierto (Asignado)",
+  completado: "Completado",
+};
+
 // Historial de pedidos de un vendedor/a puntual (botón "Descargar
 // historial" del reporte por vendedor/a en el admin). Una fila por
 // pedido, con el link a pedido.html para poder abrir el detalle
@@ -59,6 +69,7 @@ function generarExcelHistorialVendedor(vendedor, pedidos) {
       Cliente: pedido.cliente_nombre,
       Telefono: pedido.cliente_telefono,
       "Importe Total": pedido.total,
+      "Estado del Pedido": ETIQUETAS_ESTADO_EXCEL[pedido.estado] || pedido.estado,
       "Link del Pedido": window.location.origin + "/pedido.html?id=" + pedido.id,
     };
   });
