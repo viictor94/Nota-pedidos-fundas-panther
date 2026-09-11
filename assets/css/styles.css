@@ -580,11 +580,12 @@ a {
   letter-spacing: 0.03em;
 }
 
-/* Cantidad y precio alineados a la derecha, como en una planilla real. */
-.table-pedido th:nth-child(3),
+/* Cantidad y precio alineados a la derecha, como en una planilla real
+   (columnas 4 y 5: check/SKU/Descripción van antes). */
 .table-pedido th:nth-child(4),
-.table-pedido td:nth-child(3),
-.table-pedido td:nth-child(4) {
+.table-pedido th:nth-child(5),
+.table-pedido td:nth-child(4),
+.table-pedido td:nth-child(5) {
   text-align: right;
   white-space: nowrap;
 }
@@ -601,6 +602,20 @@ a {
   background: #f9fafb;
   font-weight: 800;
   border-top: 2px solid var(--color-primary);
+}
+
+/* Detalle que dejó el cliente para esa variante (color, género,
+   diseño puntual, etc.), dentro de la misma celda de descripción. */
+.pedido-item-nota {
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.5rem;
+  background: #fef9c3;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #854d0e;
+  white-space: normal;
 }
 
 /* Columna del check de armado: angosta y centrada, casillas más
@@ -904,12 +919,58 @@ a {
 
 .variant-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.65rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+}
+
+.variant-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Detalle opcional para la vendedora (color, género, diseño, etc.):
+   no se exporta al Excel de picking, pero sí se ve en pedido.html y al
+   imprimir/guardar como PDF. */
+.variant-item-nota {
+  border-top: 1px dashed var(--color-border);
+  padding-top: 0.5rem;
+}
+
+.variant-item-nota-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-light);
+  margin-bottom: 0.3rem;
+}
+
+.variant-item-nota-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.4rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.82rem;
+  font-family: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+}
+
+.variant-item-nota-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.variant-item-nota-contador {
+  margin: 0.25rem 0 0;
+  font-size: 0.7rem;
+  color: var(--color-text-light);
+  text-align: right;
 }
 
 .variant-item-info {

@@ -627,9 +627,18 @@ function abrirModalVariantes(producto) {
   mostrarModal(document.getElementById("variant-modal"));
 }
 
+// Palabras máximas para la nota que el cliente puede dejarle a la
+// vendedora en cada variante (ej. "Color azul", "Para varón"). Un
+// número bajo alcanza de sobra para un detalle corto y evita que se
+// use como un segundo campo de comentarios largo.
+const MAXIMO_PALABRAS_NOTA = 30;
+
 function crearFilaVariante(producto, variante) {
   const fila = document.createElement("div");
   fila.className = "variant-item";
+
+  const filaSuperior = document.createElement("div");
+  filaSuperior.className = "variant-item-top";
 
   const info = document.createElement("div");
   info.className = "variant-item-info";
@@ -662,7 +671,7 @@ function crearFilaVariante(producto, variante) {
   stockBadge.textContent = variante.stock_estado;
   info.appendChild(stockBadge);
 
-  fila.appendChild(info);
+  filaSuperior.appendChild(info);
 
   const sinStock = variante.stock_estado === "SIN STOCK";
 
@@ -671,7 +680,8 @@ function crearFilaVariante(producto, variante) {
     aviso.textContent = "No disponible";
     aviso.style.fontSize = "0.8rem";
     aviso.style.color = "var(--color-text-light)";
-    fila.appendChild(aviso);
+    filaSuperior.appendChild(aviso);
+    fila.appendChild(filaSuperior);
     return fila;
   }
 
@@ -693,19 +703,64 @@ function crearFilaVariante(producto, variante) {
   btnMas.textContent = "+";
 
   btnMenos.addEventListener("click", function () {
-    cambiarCantidadCarrito(producto, variante, -1);
+    cambiarCantidadCarrito(producto, variante, -1, textareaNota.value.trim());
     valor.textContent = String((carrito[variante.id] && carrito[variante.id].cantidad) || 0);
   });
 
   btnMas.addEventListener("click", function () {
-    cambiarCantidadCarrito(producto, variante, 1);
+    cambiarCantidadCarrito(producto, variante, 1, textareaNota.value.trim());
     valor.textContent = String((carrito[variante.id] && carrito[variante.id].cantidad) || 0);
   });
 
   control.appendChild(btnMenos);
   control.appendChild(valor);
   control.appendChild(btnMas);
-  fila.appendChild(control);
+  filaSuperior.appendChild(control);
+  fila.appendChild(filaSuperior);
+
+  // Detalle opcional para la vendedora al armar el pedido (color,
+  // género, diseño puntual, etc.). Vive en el carrito junto al resto
+  // del ítem, no en una tabla aparte: se ve en pedido.html/PDF pero
+  // nunca se exporta al Excel (ese archivo es solo para picking por
+  // SKU/cantidad).
+  const notaBox = document.createElement("div");
+  notaBox.className = "variant-item-nota";
+
+  const notaLabel = document.createElement("label");
+  notaLabel.className = "variant-item-nota-label";
+  notaLabel.textContent = "Agregar algún detalle";
+  notaBox.appendChild(notaLabel);
+
+  const textareaNota = document.createElement("textarea");
+  textareaNota.className = "variant-item-nota-input";
+  textareaNota.rows = 2;
+  textareaNota.placeholder = "Contanos si necesitás color, género, diseño específico, etc.";
+  textareaNota.value = (carrito[variante.id] && carrito[variante.id].nota) || "";
+  notaBox.appendChild(textareaNota);
+
+  const notaContador = document.createElement("p");
+  notaContador.className = "variant-item-nota-contador";
+  notaBox.appendChild(notaContador);
+
+  function actualizarContadorNota() {
+    const cantidadPalabras = contarPalabras(textareaNota.value);
+    notaContador.textContent = cantidadPalabras + "/" + MAXIMO_PALABRAS_NOTA + " palabras";
+  }
+
+  textareaNota.addEventListener("input", function () {
+    limitarPalabras(textareaNota, MAXIMO_PALABRAS_NOTA);
+    actualizarContadorNota();
+    // Si la variante ya está en el carrito, el detalle se guarda al
+    // toque (sin esperar a que se toque + / -), para no perderlo si el
+    // cliente cierra el modal enseguida.
+    if (carrito[variante.id]) {
+      carrito[variante.id].nota = textareaNota.value.trim();
+      guardarCarritoEnSesion();
+    }
+  });
+
+  actualizarContadorNota();
+  fila.appendChild(notaBox);
 
   return fila;
 }
@@ -720,7 +775,24 @@ function claseCssStock(stockEstado) {
   return mapa[stockEstado] || "sin-stock";
 }
 
-function cambiarCantidadCarrito(producto, variante, delta) {
+function contarPalabras(texto) {
+  const limpio = (texto || "").trim();
+  return limpio === "" ? 0 : limpio.split(/\s+/).length;
+}
+
+// Si se pasan más de "maximo" palabras, recorta el textarea a esa
+// cantidad en el momento (en vez de bloquear el tipeo o mostrar un
+// error), para que sea evidente que se llegó al límite.
+function limitarPalabras(textarea, maximo) {
+  const palabras = textarea.value.trim().split(/\s+/).filter(function (p) {
+    return p !== "";
+  });
+  if (palabras.length > maximo) {
+    textarea.value = palabras.slice(0, maximo).join(" ");
+  }
+}
+
+function cambiarCantidadCarrito(producto, variante, delta, notaTexto) {
   const actual = carrito[variante.id];
   const nuevaCantidad = (actual ? actual.cantidad : 0) + delta;
 
@@ -735,6 +807,7 @@ function cambiarCantidadCarrito(producto, variante, delta) {
       modelo: variante.modelo,
       precioUnitario: variante.precio_actual,
       cantidad: nuevaCantidad,
+      nota: notaTexto !== undefined ? notaTexto : (actual ? actual.nota || "" : ""),
     };
   }
 
@@ -979,6 +1052,7 @@ async function manejarSubmitCheckout(evento) {
         precioUnitario: item.precioUnitario,
         cantidad: item.cantidad,
         subtotal: item.precioUnitario * item.cantidad,
+        nota: item.nota || "",
       };
     });
 

@@ -140,7 +140,19 @@ function crearFilaVariantePedido(item, marcado) {
   fila.appendChild(celdaSku);
 
   const celdaDescripcion = document.createElement("td");
-  celdaDescripcion.textContent = item.modelo;
+  const textoModelo = document.createElement("span");
+  textoModelo.textContent = item.modelo;
+  celdaDescripcion.appendChild(textoModelo);
+
+  // Detalle que dejó el cliente al armar el pedido (color, género,
+  // diseño puntual, etc.): se ve acá y al imprimir/PDF, pero nunca se
+  // exporta al Excel de picking.
+  if (item.nota) {
+    const nota = document.createElement("div");
+    nota.className = "pedido-item-nota";
+    nota.textContent = "📝 " + item.nota;
+    celdaDescripcion.appendChild(nota);
+  }
   fila.appendChild(celdaDescripcion);
 
   const celdaCantidad = document.createElement("td");
