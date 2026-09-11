@@ -96,9 +96,23 @@ function mostrarSelectorModo() {
   document.getElementById("pedido-tabla-wrap").style.display = "none";
   document.getElementById("pedido-sin-stock-nota").style.display = "none";
   document.getElementById("pedido-preparar-controles").style.display = "none";
-  document.getElementById("pedido-acciones-compartir").style.display = "none";
+  ocultarBotonesCompartir();
   document.getElementById("btn-imprimir-pedido").style.display = "none";
   document.getElementById("pedido-guardando-aviso").style.display = "none";
+}
+
+// El botón "Compartir con la Vendedora por WhatsApp" sólo tiene
+// sentido en modo Ver (lo usa el cliente para mandarle el link a la
+// vendedora): en modo Preparar, quien mira la pantalla YA es la
+// vendedora, así que ese botón no debe aparecer ahí, sólo "Copiar
+// Enlace del pedido" (para reenviarle el resultado al cliente).
+function mostrarBotonesCompartir(mostrarTambienBotonVendedor) {
+  document.getElementById("pedido-acciones-compartir").style.display = "flex";
+  document.getElementById("btn-compartir-vendedor").style.display = mostrarTambienBotonVendedor ? "inline-flex" : "none";
+}
+
+function ocultarBotonesCompartir() {
+  document.getElementById("pedido-acciones-compartir").style.display = "none";
 }
 
 function entrarModoVer() {
@@ -109,7 +123,7 @@ function entrarModoVer() {
   document.getElementById("pedido-tabla-wrap").style.display = "block";
   document.getElementById("pedido-preparar-controles").style.display = "none";
   document.getElementById("btn-imprimir-pedido").style.display = "none";
-  document.getElementById("pedido-acciones-compartir").style.display = "flex";
+  mostrarBotonesCompartir(true);
   renderTablaVer(pedidoActual);
 }
 
@@ -121,7 +135,11 @@ function entrarModoPreparar() {
   document.getElementById("pedido-tabla-wrap").style.display = "block";
   document.getElementById("pedido-preparar-controles").style.display = "flex";
   document.getElementById("btn-imprimir-pedido").style.display = "inline-flex";
-  document.getElementById("pedido-acciones-compartir").style.display = pedidoActual.armado_finalizado ? "flex" : "none";
+  if (pedidoActual.armado_finalizado) {
+    mostrarBotonesCompartir(false);
+  } else {
+    ocultarBotonesCompartir();
+  }
   renderTablaPreparar();
 }
 
@@ -605,7 +623,7 @@ async function manejarClickConfirmarFinalizar() {
     pedidoActual.preparado_por_nombre = null;
 
     aviso.style.display = "none";
-    document.getElementById("pedido-acciones-compartir").style.display = "flex";
+    mostrarBotonesCompartir(false);
     mostrarCopiadoConfirmacion();
   } catch (error) {
     aviso.style.display = "none";
