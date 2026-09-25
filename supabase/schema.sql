@@ -73,16 +73,19 @@ create table if not exists public.categorias (
   id          uuid primary key default gen_random_uuid(),
   nombre      text not null,
   icono       text,
+  imagen_url  text,
   orden       integer not null default 0,
   activo      boolean not null default true,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
 
--- "icono" nullable a propósito: se sumó después de crear la tabla. El
--- catálogo cliente muestra un ícono genérico si una categoría no tiene
--- uno propio cargado (ver app.js).
+-- "icono"/"imagen_url" nullables a propósito: se sumaron después de
+-- crear la tabla. El catálogo cliente muestra la imagen (silueta de la
+-- categoría, ej. una funda o un cargador) si está cargada, si no el
+-- emoji de "icono", y si tampoco hay eso un ícono genérico (ver app.js).
 alter table public.categorias add column if not exists icono text;
+alter table public.categorias add column if not exists imagen_url text;
 
 drop index if exists public.categorias_nombre_unq;
 create unique index categorias_nombre_unq on public.categorias (lower(trim(nombre)));

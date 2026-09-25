@@ -63,7 +63,7 @@ async function obtenerCatalogoCompleto() {
 async function obtenerCategorias() {
   const { data, error } = await supabaseClient
     .from("categorias")
-    .select("id, nombre, icono, orden, activo")
+    .select("id, nombre, icono, imagen_url, orden, activo")
     .eq("activo", true)
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
@@ -78,7 +78,7 @@ async function obtenerCategorias() {
 async function obtenerCategoriasCompleto() {
   const { data, error } = await supabaseClient
     .from("categorias")
-    .select("id, nombre, icono, orden, activo")
+    .select("id, nombre, icono, imagen_url, orden, activo")
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
 
@@ -505,6 +505,25 @@ async function actualizarPreciosStockMasivo(filas) {
 async function subirFotoProducto(productoId, archivo) {
   const extension = archivo.name.split(".").pop();
   const ruta = "productos/" + productoId + "." + extension;
+
+  const { error: errorSubida } = await supabaseClient.storage
+    .from("assets-publicos")
+    .upload(ruta, archivo, { upsert: true });
+
+  if (errorSubida) {
+    throw errorSubida;
+  }
+
+  const { data } = supabaseClient.storage.from("assets-publicos").getPublicUrl(ruta);
+  return data.publicUrl;
+}
+
+// Igual que subirFotoProducto, pero bajo categorias/{categoriaId}.{ext}.
+// Pensada para una imagen sin fondo (silueta) de la categoría, mostrada
+// grande en las tarjetas del catálogo cliente.
+async function subirImagenCategoria(categoriaId, archivo) {
+  const extension = archivo.name.split(".").pop();
+  const ruta = "categorias/" + categoriaId + "." + extension;
 
   const { error: errorSubida } = await supabaseClient.storage
     .from("assets-publicos")

@@ -1721,6 +1721,19 @@ function renderCategoriaRowVista(fila, categoria, indice, total) {
     fila.removeChild(fila.firstChild);
   }
 
+  if (categoria.imagen_url) {
+    const miniatura = document.createElement("img");
+    miniatura.src = categoria.imagen_url;
+    miniatura.alt = "";
+    miniatura.style.width = "36px";
+    miniatura.style.height = "36px";
+    miniatura.style.objectFit = "contain";
+    miniatura.style.background = "#f3f4f6";
+    miniatura.style.borderRadius = "6px";
+    miniatura.style.flex = "0 0 auto";
+    fila.appendChild(miniatura);
+  }
+
   const info = document.createElement("div");
   info.className = "vendedor-row-info";
 
@@ -1796,6 +1809,40 @@ function renderCategoriaRowVista(fila, categoria, indice, total) {
     renderCategoriaRowEdicion(fila, categoria, indice, total);
   });
   acciones.appendChild(btnEditar);
+
+  // Input de archivo oculto: se dispara clickeándolo desde btnImagen, y
+  // sube apenas se elige un archivo (mismo patrón que la foto de
+  // producto, sin un paso extra de "guardar").
+  const inputImagen = document.createElement("input");
+  inputImagen.type = "file";
+  inputImagen.accept = "image/*";
+  inputImagen.style.display = "none";
+  inputImagen.addEventListener("change", async function () {
+    const archivo = inputImagen.files[0];
+    if (!archivo) return;
+    try {
+      const url = await subirImagenCategoria(categoria.id, archivo);
+      await actualizarCategoria(categoria.id, { imagen_url: url });
+      categoriasAdmin = await obtenerCategoriasCompleto();
+      renderCategoriasLista();
+      mostrarToast("Imagen actualizada.", "success");
+    } catch (error) {
+      mostrarToast("No se pudo subir la imagen.", "error");
+    }
+  });
+  acciones.appendChild(inputImagen);
+
+  const btnImagen = document.createElement("button");
+  btnImagen.type = "button";
+  btnImagen.className = "btn-secondary";
+  btnImagen.style.width = "auto";
+  btnImagen.style.padding = "0.3rem 0.65rem";
+  btnImagen.style.fontSize = "0.78rem";
+  btnImagen.textContent = "🖼️ Imagen";
+  btnImagen.addEventListener("click", function () {
+    inputImagen.click();
+  });
+  acciones.appendChild(btnImagen);
 
   const btnEliminar = document.createElement("button");
   btnEliminar.type = "button";
@@ -1926,10 +1973,15 @@ async function manejarSubmitAgregarCategoria(evento) {
 
   const nombre = document.getElementById("categoria-nombre").value.trim();
   const icono = document.getElementById("categoria-icono").value.trim();
+  const archivoImagen = document.getElementById("categoria-imagen").files[0];
   if (!nombre) return;
 
   try {
-    await crearCategoria(nombre, icono);
+    const categoria = await crearCategoria(nombre, icono);
+    if (archivoImagen) {
+      const url = await subirImagenCategoria(categoria.id, archivoImagen);
+      await actualizarCategoria(categoria.id, { imagen_url: url });
+    }
     document.getElementById("form-add-categoria").reset();
     categoriasAdmin = await obtenerCategoriasCompleto();
     renderCategoriasLista();

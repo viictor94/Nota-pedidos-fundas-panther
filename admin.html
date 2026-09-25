@@ -766,10 +766,14 @@
               <label class="form-label" for="categoria-icono">Ícono (emoji)</label>
               <input type="text" id="categoria-icono" class="form-input" placeholder="📱" maxlength="4">
             </div>
+            <div class="form-group" style="flex: 1; min-width: 220px; margin-bottom: 0;">
+              <label class="form-label" for="categoria-imagen">Imagen (silueta, sin fondo)</label>
+              <input type="file" id="categoria-imagen" class="form-input" accept="image/*">
+            </div>
             <button type="submit" class="btn-primary" style="width: auto; padding: 0.65rem 1.25rem;">➕ Agregar</button>
           </form>
           <p style="color: var(--color-text-light); font-size: 0.8rem; margin-top: 0.5rem;">
-            El ícono es opcional: si no cargás uno, el cliente ve un ícono genérico 🏷️ para esa categoría.
+            Ambos son opcionales. La imagen se ve grande en la tarjeta de categoría del catálogo (ideal: PNG con fondo transparente, ej. la silueta de una funda o un cargador); si no cargás una, se usa el ícono, y si tampoco hay ícono, uno genérico 🏷️.
           </p>
         </section>
 

@@ -370,10 +370,9 @@ a {
   gap: 1rem;
 }
 
-/* ---------- Carruseles de destacados (Nuevos Ingresos / Promos) ----------
+/* ---------- Fila de destacados (Promos del Día) ----------
    Fila estática con scroll horizontal nativo (sin animación 3D ni swipe a
-   mano): mismo patrón que .category-cards, el navegador resuelve el
-   arrastre táctil/mouse por su cuenta. */
+   mano): el navegador resuelve el arrastre táctil/mouse por su cuenta. */
 .carousel-wrap {
   margin-bottom: 1.75rem;
 }
@@ -403,67 +402,70 @@ a {
   cursor: pointer;
 }
 
-/* ---------- Barra de herramientas del catálogo (tarjetas de categoría +
-   toggle de vista) ---------- */
+/* ---------- Barra de herramientas del catálogo (ahora solo el toggle
+   de vista: las categorías pasaron a su propia sección arriba) ---------- */
 .catalog-toolbar {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  justify-content: flex-end;
   margin-bottom: 0.75rem;
 }
 
-.catalog-toolbar .category-cards {
-  flex: 1;
-  min-width: 0;
-  margin-bottom: 0;
-}
-
-/* ---------- Tarjetas de categoría ---------- */
+/* ---------- Tarjetas grandes de categoría ----------
+   Grilla de botones rectangulares con la silueta de la categoría
+   (imagen sin fondo, cargada desde el admin) alineada a la derecha y
+   el nombre abajo a la izquierda, estilo "elegí un rubro". */
 .category-cards {
-  display: flex;
-  gap: 0.6rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 0.5rem;
-  scrollbar-width: none; /* Firefox: el scroll sigue funcionando, solo se oculta la barra */
-}
-.category-cards::-webkit-scrollbar {
-  display: none;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
 }
 .category-card {
-  flex: 0 0 auto;
-  width: 82px;
+  position: relative;
+  aspect-ratio: 16 / 10;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.3rem;
-  padding: 0.6rem 0.35rem;
+  align-items: flex-end;
+  padding: 0.75rem;
   background: var(--color-surface);
   border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-light);
-  text-align: center;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  text-align: left;
+}
+.category-card-image {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  width: auto;
+  max-width: 60%;
+  height: calc(100% - 0.8rem);
+  object-fit: contain;
 }
 .category-card-icon {
-  font-size: 1.5rem;
+  position: absolute;
+  top: 50%;
+  right: 0.9rem;
+  transform: translateY(-50%);
+  font-size: 2.2rem;
   line-height: 1;
+  opacity: 0.85;
 }
 .category-card-label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
+  position: relative;
+  z-index: 1;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-text);
+  line-height: 1.2;
+  max-width: 65%;
 }
 .category-card.active {
-  background: var(--color-primary-light);
   border-color: var(--color-primary);
-  color: var(--color-primary-dark);
+  box-shadow: 0 0 0 1.5px var(--color-primary);
+  background: var(--color-primary-light);
 }
 
-/* Toggle Grilla / Lista: se mantiene arriba a la derecha del todo,
-   parejo con el borde superior de las tarjetas (ver align-items:
-   flex-start en .catalog-toolbar), aunque las tarjetas sean más altas. */
 .view-toggle {
   flex: 0 0 auto;
   display: flex;
@@ -1375,6 +1377,10 @@ a {
   .destacado-card {
     width: 175px;
   }
+
+  .category-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 @media (min-width: 768px) {
@@ -1394,5 +1400,9 @@ a {
 @media (min-width: 1024px) {
   .catalog-grid {
     grid-template-columns: repeat(5, 1fr);
+  }
+
+  .category-cards {
+    grid-template-columns: repeat(4, 1fr);
   }
 }

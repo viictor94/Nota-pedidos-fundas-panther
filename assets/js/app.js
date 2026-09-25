@@ -245,9 +245,10 @@ function wireEventosEstaticos() {
 const ICONO_CATEGORIA_TODOS = "🗂️";
 const ICONO_CATEGORIA_DEFECTO = "🏷️";
 
-// Tarjetas de categoría: "Todos" + una por categoría activa. Al tocar
-// una se filtra la grilla de abajo (los carruseles de Promos/Nuevos no
-// se ven afectados, son transversales a categorías).
+// Tarjetas grandes de categoría: "Todos" + una por categoría activa. Al
+// tocar una se filtra la grilla/lista de abajo. Cada una muestra su
+// imagen (silueta sin fondo, cargada desde el admin) si tiene una; si
+// no, cae al ícono/emoji, y si tampoco hay eso, a un ícono genérico.
 function renderTarjetasCategoria() {
   const contenedor = document.getElementById("category-cards");
   if (!contenedor) return;
@@ -256,15 +257,15 @@ function renderTarjetasCategoria() {
     contenedor.removeChild(contenedor.firstChild);
   }
 
-  contenedor.appendChild(crearTarjetaCategoria(null, "Todos", ICONO_CATEGORIA_TODOS));
+  contenedor.appendChild(crearTarjetaCategoria(null, "Todos", ICONO_CATEGORIA_TODOS, null));
   categoriasDisponibles.forEach(function (categoria) {
     contenedor.appendChild(
-      crearTarjetaCategoria(categoria.id, categoria.nombre, categoria.icono || ICONO_CATEGORIA_DEFECTO)
+      crearTarjetaCategoria(categoria.id, categoria.nombre, categoria.icono || ICONO_CATEGORIA_DEFECTO, categoria.imagen_url)
     );
   });
 }
 
-function crearTarjetaCategoria(id, nombre, icono) {
+function crearTarjetaCategoria(id, nombre, icono, imagenUrl) {
   const activa = categoriaActivaId === id;
 
   const tarjeta = document.createElement("button");
@@ -273,11 +274,19 @@ function crearTarjetaCategoria(id, nombre, icono) {
   tarjeta.setAttribute("role", "tab");
   tarjeta.setAttribute("aria-selected", activa ? "true" : "false");
 
-  const spanIcono = document.createElement("span");
-  spanIcono.className = "category-card-icon";
-  spanIcono.textContent = icono;
-  spanIcono.setAttribute("aria-hidden", "true");
-  tarjeta.appendChild(spanIcono);
+  if (imagenUrl) {
+    const imagen = document.createElement("img");
+    imagen.className = "category-card-image";
+    imagen.src = imagenUrl;
+    imagen.alt = "";
+    tarjeta.appendChild(imagen);
+  } else {
+    const spanIcono = document.createElement("span");
+    spanIcono.className = "category-card-icon";
+    spanIcono.textContent = icono;
+    spanIcono.setAttribute("aria-hidden", "true");
+    tarjeta.appendChild(spanIcono);
+  }
 
   const spanNombre = document.createElement("span");
   spanNombre.className = "category-card-label";
@@ -589,10 +598,9 @@ function seguirCargandoSiSentinelaVisible() {
   }
 }
 
-// Las secciones "Promos del Día" y "Nuevos Ingresos" son filas
-// estáticas con scroll horizontal (sin animación 3D ni swipe a mano):
-// el navegador ya resuelve el scroll táctil/mouse por su cuenta, igual
-// que las tarjetas de categoría.
+// "Promos del Día" es una fila estática con scroll horizontal (sin
+// animación 3D ni swipe a mano): el navegador ya resuelve el scroll
+// táctil/mouse por su cuenta.
 function renderCarruseles() {
   renderFilaDestacados(
     "carousel-promos-wrap",
@@ -601,13 +609,10 @@ function renderCarruseles() {
       return p.en_promo;
     })
   );
-  renderFilaDestacados(
-    "carousel-nuevos-wrap",
-    "carousel-nuevos",
-    catalogoCompleto.filter(function (p) {
-      return p.es_nuevo;
-    })
-  );
+  // "Nuevos Ingresos" ya no tiene su propia fila: los productos
+  // es_nuevo siguen destacados con el cartel 🆕 dentro de la grilla/
+  // lista normal (ver ordenarDestacadosPrimero), solo que ahora sin una
+  // sección aparte para dejarle el lugar a las tarjetas de categoría.
 }
 
 function renderFilaDestacados(idWrap, idTrack, productos) {

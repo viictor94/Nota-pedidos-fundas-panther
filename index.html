@@ -45,23 +45,22 @@
     <!-- Sección de Catálogo -->
     <section id="catalog-section" class="catalog-section active">
 
-      <!-- Carruseles 3D de destacados (solo se muestran si hay productos
-           marcados). Se puede tocar la tarjeta de un costado para
-           traerla al frente, o usar las flechas ‹ ›. -->
+      <!-- Fila estática de "Promos del Día" (solo se muestra si hay
+           productos marcados como en_promo). -->
       <div id="carousel-promos-wrap" class="carousel-wrap" style="display: none;">
         <h2 class="carousel-title">🔥 Promos del Día</h2>
         <div id="carousel-promos" class="destacados-scroll"></div>
       </div>
 
-      <div id="carousel-nuevos-wrap" class="carousel-wrap" style="display: none;">
-        <h2 class="carousel-title">🆕 Nuevos Ingresos</h2>
-        <div id="carousel-nuevos" class="destacados-scroll"></div>
+      <!-- Tarjetas grandes de categoría: imagen (silueta sin fondo,
+           cargada desde el admin) + nombre. "Todos" + una por categoría
+           activa. Al tocar una se filtra la grilla/lista de abajo. -->
+      <h2 class="carousel-title">Categorías</h2>
+      <div id="category-cards" class="category-cards" role="tablist" aria-label="Filtrar por categoría">
+        <!-- Tarjetas insertadas vía JS -->
       </div>
 
       <div class="catalog-toolbar">
-        <div id="category-cards" class="category-cards" role="tablist" aria-label="Filtrar por categoría">
-          <!-- Tarjetas insertadas vía JS: "Todos" + una por categoría activa -->
-        </div>
         <div class="view-toggle" role="group" aria-label="Cambiar tipo de vista">
           <button type="button" id="btn-vista-grid" class="view-toggle-btn active" aria-label="Ver en grilla" title="Ver en grilla">▦</button>
           <button type="button" id="btn-vista-lista" class="view-toggle-btn" aria-label="Ver en lista" title="Ver en lista">☰</button>
