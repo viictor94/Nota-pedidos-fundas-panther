@@ -2464,13 +2464,33 @@ async function manejarSubmitAgregarUsuario(evento) {
     await cargarUsuariosAdmin();
     mostrarToast("Usuario asignado correctamente.", "success");
   } catch (error) {
-    mostrarToast(
-      error && error.code === "23505"
-        ? "Ese usuario ya tiene un perfil asignado."
-        : "No se pudo asignar el usuario (verificá que el ID sea correcto).",
-      "error"
-    );
+    mostrarToast(mensajeErrorCrearUsuario(error), "error");
   }
+}
+
+// Traduce los códigos de error de Postgres a un mensaje que dice
+// exactamente qué falló, en vez de un genérico "verificá el ID" que
+// tapa causas muy distintas (usuario duplicado, UUID inexistente en
+// Auth, o un vendedor/a inválido).
+function mensajeErrorCrearUsuario(error) {
+  if (!error) return "No se pudo asignar el usuario.";
+
+  if (error.code === "23505") {
+    return "Ese usuario ya tiene un perfil asignado.";
+  }
+
+  // 23503 = foreign_key_violation. El detalle de Postgres dice qué
+  // columna no encontró su referencia (id -> auth.users, o
+  // vendedor_id -> vendedores).
+  if (error.code === "23503") {
+    const detalle = (error.details || error.message || "").toLowerCase();
+    if (detalle.indexOf("vendedor_id") !== -1) {
+      return "El vendedor/a elegido no existe (puede haber sido borrado). Recargá la página e intentá de nuevo.";
+    }
+    return 'Ese ID de usuario no existe en Supabase Auth. Verificá que copiaste el UUID completo desde el Dashboard (Authentication → Users → columna "UID").';
+  }
+
+  return "No se pudo asignar el usuario" + (error.message ? ": " + error.message : "") + ".";
 }
 
 // ---------------------------------------------------------------------
