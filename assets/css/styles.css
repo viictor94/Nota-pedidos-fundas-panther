@@ -412,8 +412,8 @@ a {
 
 /* ---------- Tarjetas grandes de categoría ----------
    Grilla de botones rectangulares con la silueta de la categoría
-   (imagen sin fondo, cargada desde el admin) alineada a la derecha y
-   el nombre abajo a la izquierda, estilo "elegí un rubro". */
+   (imagen sin fondo, cargada desde el admin) arriba centrada y el
+   nombre debajo, también centrado. */
 .category-cards {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -421,44 +421,35 @@ a {
   margin-bottom: 1.5rem;
 }
 .category-card {
-  position: relative;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 1 / 1;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   padding: 0.75rem;
   background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  text-align: left;
+  text-align: center;
 }
 .category-card-image {
-  position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
-  bottom: 0.4rem;
-  width: auto;
-  max-width: 60%;
-  height: calc(100% - 0.8rem);
+  flex: 1;
+  min-height: 0;
+  max-width: 80%;
   object-fit: contain;
 }
 .category-card-icon {
-  position: absolute;
-  top: 50%;
-  right: 0.9rem;
-  transform: translateY(-50%);
-  font-size: 2.2rem;
+  font-size: 2.4rem;
   line-height: 1;
   opacity: 0.85;
 }
 .category-card-label {
-  position: relative;
-  z-index: 1;
   font-size: 0.9rem;
   font-weight: 800;
   color: var(--color-text);
   line-height: 1.2;
-  max-width: 65%;
 }
 .category-card.active {
   border-color: var(--color-primary);
