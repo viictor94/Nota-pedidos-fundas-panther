@@ -598,6 +598,14 @@ alter table public.perfiles_admin drop constraint if exists perfiles_admin_rol_c
 alter table public.perfiles_admin add constraint perfiles_admin_rol_check
   check (rol in ('admin', 'vendedora', 'editor'));
 
+-- Vincula la cuenta de login (este perfil) con su fila en "vendedores"
+-- (nombre real, provincia, N° de Zeus). Sin esto no hay forma de saber,
+-- cuando una vendedora entra al panel con su propio usuario, cuál es
+-- "ella" dentro de la tabla de vendedores para las funciones de abajo
+-- (tomar_pedido, completar_pedido_propio). Solo tiene sentido para rol
+-- "vendedora"; el admin lo completa a mano en el tab Usuarios.
+alter table public.perfiles_admin add column if not exists vendedor_id uuid references public.vendedores(id) on delete set null;
+
 drop trigger if exists trg_perfiles_admin_updated on public.perfiles_admin;
 create trigger trg_perfiles_admin_updated before update on public.perfiles_admin
   for each row execute function public.set_updated_at();
@@ -643,6 +651,99 @@ as $$
     where id = auth.uid() and rol in ('admin', 'editor') and activo
   );
 $$;
+
+-- ---------------------------------------------------------------------
+-- Autoservicio de pedidos para vendedoras: antes, solo el admin podía
+-- tocar "pedidos" (pedidos_escritura_admin más abajo sigue siendo
+-- es_admin()-only), así que una vendedora dependía de avisarle al admin
+-- para que asigne/complete cada pedido. Estas dos funciones SECURITY
+-- DEFINER le dan a cada vendedora un camino angosto y seguro para
+-- tomar un pedido sin dueño y cerrar los suyos, sin necesidad de
+-- otorgarle UPDATE directo sobre toda la tabla.
+-- ---------------------------------------------------------------------
+
+-- Toma un pedido sin vendedor/a asignado (o que ya es suyo) de forma
+-- atómica: el "where vendedor_id is null" en el update es lo que evita
+-- que dos vendedoras se lo lleven a la vez (la segunda en llegar
+-- actualiza 0 filas y se entera de que ya estaba tomado).
+create or replace function public.tomar_pedido(p_id uuid)
+returns table (ok boolean, motivo text, vendedor_nombre text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_vendedor_id     uuid;
+  v_vendedor_nombre text;
+  v_actualizadas    integer;
+  v_actual_nombre   text;
+begin
+  select pa.vendedor_id, v.nombre_completo into v_vendedor_id, v_vendedor_nombre
+  from public.perfiles_admin pa
+  join public.vendedores v on v.id = pa.vendedor_id and v.activo
+  where pa.id = auth.uid() and pa.rol = 'vendedora' and pa.activo;
+
+  if v_vendedor_id is null then
+    return query select false, 'sin_vendedor_vinculado', null::text;
+    return;
+  end if;
+
+  update public.pedidos
+  set vendedor_id = v_vendedor_id,
+      estado = case when estado = 'nuevo' then 'asignado' else estado end
+  where id = p_id and estado <> 'completado' and (vendedor_id is null or vendedor_id = v_vendedor_id);
+
+  get diagnostics v_actualizadas = row_count;
+
+  if v_actualizadas = 0 then
+    select v.nombre_completo into v_actual_nombre
+    from public.pedidos p
+    join public.vendedores v on v.id = p.vendedor_id
+    where p.id = p_id;
+
+    return query select false, 'ya_asignado', v_actual_nombre;
+    return;
+  end if;
+
+  return query select true, 'ok', v_vendedor_nombre;
+end;
+$$;
+
+revoke all on function public.tomar_pedido(uuid) from public;
+grant execute on function public.tomar_pedido(uuid) to authenticated;
+
+-- Cierra (estado "completado") un pedido que ya es suyo. No permite
+-- tocar pedidos de otra vendedora ni sin asignar (para eso está
+-- tomar_pedido primero).
+create or replace function public.completar_pedido_propio(p_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_vendedor_id  uuid;
+  v_actualizadas integer;
+begin
+  select vendedor_id into v_vendedor_id
+  from public.perfiles_admin
+  where id = auth.uid() and rol = 'vendedora' and activo;
+
+  if v_vendedor_id is null then
+    return false;
+  end if;
+
+  update public.pedidos
+  set estado = 'completado'
+  where id = p_id and vendedor_id = v_vendedor_id and estado <> 'completado';
+
+  get diagnostics v_actualizadas = row_count;
+  return v_actualizadas > 0;
+end;
+$$;
+
+revoke all on function public.completar_pedido_propio(uuid) from public;
+grant execute on function public.completar_pedido_propio(uuid) to authenticated;
 
 -- Migra al único admin histórico (usuario fijo de antes de que
 -- existiera esta tabla) para que no pierda el acceso: si ya tiene una

@@ -21,6 +21,7 @@ let categoriasAdmin = []; // Activas e inactivas, para la pestaña Categorías y
 let usuariosAdmin = []; // Perfiles (nombre/rol) de quienes tienen acceso al panel.
 let rolActual = null; // "admin", "editor" o "vendedora": del usuario logueado, define qué pestañas ve.
 let usuarioActualId = null; // Id del usuario logueado (para no dejarlo autoeliminarse/autodegradarse).
+let miVendedorId = null; // Solo para rol "vendedora": su fila vinculada en "vendedores" (ver perfiles_admin.vendedor_id).
 
 // ---------------------------------------------------------------------
 // Inicialización
@@ -383,10 +384,21 @@ function normalizarFilaExcelPrecios(fila) {
 // tablas distintas, para no tener que scrollear el historial completo
 // buscando lo que sigue pendiente.
 function renderTablasPedidos(pedidos) {
-  const abiertos = pedidos.filter(function (p) {
+  // Una vendedora solo necesita ver lo suyo: los pedidos que ya tiene
+  // asignados y los que están libres para tomar. Los de otras
+  // sucursales/vendedoras no le aportan nada y solo generan ruido (y
+  // riesgo de confundirse y tocar algo que no es de ella).
+  const visibles =
+    rolActual === "vendedora"
+      ? pedidos.filter(function (p) {
+          return p.vendedor_id === null || p.vendedor_id === miVendedorId;
+        })
+      : pedidos;
+
+  const abiertos = visibles.filter(function (p) {
     return p.estado !== "completado";
   });
-  const completados = pedidos.filter(function (p) {
+  const completados = visibles.filter(function (p) {
     return p.estado === "completado";
   });
 
@@ -443,21 +455,116 @@ function crearFilaPedido(pedido) {
   celdaAcciones.style.gap = "0.5rem";
   fila.appendChild(celdaAcciones);
 
-  renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones);
+  if (rolActual === "vendedora") {
+    renderFilaPedidoVendedora(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones);
+  } else {
+    renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones);
+  }
 
   return fila;
 }
 
-const ETIQUETAS_ESTADO_PEDIDO = { nuevo: "🆕 Nuevo", asignado: "✅ Asignado", completado: "💰 Completado" };
-
-// Vista normal de una fila de pedido: texto de cliente/teléfono, badge
-// de estado, desplegable de vendedor/a y los botones de acción. Se
-// separa de crearFilaPedido para poder volver a esta vista después de
-// cancelar una edición, sin tener que reconstruir toda la fila.
-function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones) {
+// Vista de una fila de pedido para el rol vendedora: sin reasignar a
+// otra persona, sin Excel/editar/eliminar (igual quedarían rechazados
+// por RLS, pero mejor no mostrar botones que no van a funcionar). Solo
+// "Tomar pedido" (si está libre) o "Marcar completado" (si ya es suyo),
+// vía tomar_pedido/completar_pedido_propio (supabase/schema.sql).
+function renderFilaPedidoVendedora(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones) {
   celdaCliente.textContent = pedido.cliente_nombre;
   celdaTelefono.textContent = pedido.cliente_telefono;
 
+  pintarEstadoPedido(pedido, celdaEstado);
+
+  while (celdaVendedor.firstChild) {
+    celdaVendedor.removeChild(celdaVendedor.firstChild);
+  }
+  celdaVendedor.textContent = pedido.vendedor_id === null ? "🤝 Disponible" : "Vos";
+
+  while (celdaAcciones.firstChild) {
+    celdaAcciones.removeChild(celdaAcciones.firstChild);
+  }
+
+  const enlaceVer = document.createElement("a");
+  enlaceVer.href = "pedido.html?id=" + pedido.id;
+  enlaceVer.target = "_blank";
+  enlaceVer.rel = "noopener";
+  enlaceVer.className = "btn-secondary";
+  enlaceVer.style.width = "auto";
+  enlaceVer.style.padding = "0.35rem 0.75rem";
+  enlaceVer.style.fontSize = "0.8rem";
+  enlaceVer.style.textDecoration = "none";
+  enlaceVer.textContent = "👁️ Ver";
+  celdaAcciones.appendChild(enlaceVer);
+
+  if (pedido.vendedor_id === null && pedido.estado !== "completado") {
+    const btnTomar = document.createElement("button");
+    btnTomar.type = "button";
+    btnTomar.className = "btn-primary";
+    btnTomar.style.width = "auto";
+    btnTomar.style.padding = "0.35rem 0.75rem";
+    btnTomar.style.fontSize = "0.8rem";
+    btnTomar.textContent = "🤝 Tomar pedido";
+    btnTomar.addEventListener("click", function () {
+      manejarTomarPedido(pedido.id, btnTomar);
+    });
+    celdaAcciones.appendChild(btnTomar);
+  } else if (pedido.vendedor_id === miVendedorId && pedido.estado !== "completado") {
+    const btnCompletar = document.createElement("button");
+    btnCompletar.type = "button";
+    btnCompletar.className = "btn-secondary";
+    btnCompletar.style.width = "auto";
+    btnCompletar.style.padding = "0.35rem 0.75rem";
+    btnCompletar.style.fontSize = "0.8rem";
+    btnCompletar.textContent = "💰 Marcar completado";
+    btnCompletar.addEventListener("click", function () {
+      manejarCompletarPedido(pedido.id, btnCompletar);
+    });
+    celdaAcciones.appendChild(btnCompletar);
+  }
+}
+
+// Toma un pedido sin asignar (o confirma el propio) de forma atómica en
+// el servidor: si otra vendedora ya lo tomó justo antes, avisa sin
+// romper nada (ver tomar_pedido en supabase/schema.sql).
+async function manejarTomarPedido(pedidoId, boton) {
+  boton.disabled = true;
+  try {
+    const resultado = await tomarPedido(pedidoId);
+    if (!resultado.ok) {
+      if (resultado.motivo === "ya_asignado") {
+        mostrarToast("Ese pedido ya lo tomó " + (resultado.vendedor_nombre || "otra vendedora") + ".", "error");
+      } else if (resultado.motivo === "sin_vendedor_vinculado") {
+        mostrarToast("Tu usuario todavía no está vinculado a un/a vendedor/a. Pedile al admin que lo complete en Usuarios.", "error");
+      } else {
+        mostrarToast("No se pudo tomar el pedido.", "error");
+      }
+    } else {
+      mostrarToast("Pedido asignado a vos.", "success");
+    }
+    await refrescarPedidos();
+  } catch (error) {
+    mostrarToast("No se pudo tomar el pedido.", "error");
+    boton.disabled = false;
+  }
+}
+
+async function manejarCompletarPedido(pedidoId, boton) {
+  boton.disabled = true;
+  try {
+    const ok = await completarPedidoPropio(pedidoId);
+    mostrarToast(ok ? "Pedido marcado como completado." : "No se pudo completar el pedido.", ok ? "success" : "error");
+    await refrescarPedidos();
+  } catch (error) {
+    mostrarToast("No se pudo completar el pedido.", "error");
+    boton.disabled = false;
+  }
+}
+
+const ETIQUETAS_ESTADO_PEDIDO = { nuevo: "🆕 Nuevo", asignado: "✅ Asignado", completado: "💰 Completado" };
+
+// Badges de estado + armado, compartidos entre la vista admin y la
+// vista simplificada de vendedora (ver renderFilaPedidoVendedora).
+function pintarEstadoPedido(pedido, celdaEstado) {
   while (celdaEstado.firstChild) {
     celdaEstado.removeChild(celdaEstado.firstChild);
   }
@@ -467,8 +574,8 @@ function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado,
   celdaEstado.appendChild(badgeEstado);
 
   // Estado de armado (pedido.html): si alguien lo está preparando
-  // ahora mismo, o si ya lo terminó de armar, para que el admin lo vea
-  // sin tener que abrir el link.
+  // ahora mismo, o si ya lo terminó de armar, para verlo sin tener que
+  // abrir el link.
   if (pedido.preparado_por_id) {
     celdaEstado.appendChild(document.createElement("br"));
     const badgeLock = document.createElement("span");
@@ -482,6 +589,17 @@ function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado,
     badgeArmado.textContent = "✅ Armado" + (pedido.armado_finalizado_por ? " por " + pedido.armado_finalizado_por : "");
     celdaEstado.appendChild(badgeArmado);
   }
+}
+
+// Vista normal de una fila de pedido: texto de cliente/teléfono, badge
+// de estado, desplegable de vendedor/a y los botones de acción. Se
+// separa de crearFilaPedido para poder volver a esta vista después de
+// cancelar una edición, sin tener que reconstruir toda la fila.
+function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado, celdaVendedor, celdaAcciones) {
+  celdaCliente.textContent = pedido.cliente_nombre;
+  celdaTelefono.textContent = pedido.cliente_telefono;
+
+  pintarEstadoPedido(pedido, celdaEstado);
 
   while (celdaVendedor.firstChild) {
     celdaVendedor.removeChild(celdaVendedor.firstChild);
@@ -2049,13 +2167,31 @@ async function aplicarPermisosPorRol() {
     // migrado antes de correr el seed de supabase/schema.sql) se trata
     // como admin, para no dejarlo afuera del panel por accidente.
     rolActual = perfil ? perfil.rol : "admin";
+    miVendedorId = perfil ? perfil.vendedor_id : null;
   } catch (error) {
     rolActual = "admin";
+    miVendedorId = null;
+  }
+
+  // El reporte agregado por vendedor/a es información de todas las
+  // sucursales: solo tiene sentido para el admin.
+  const seccionReporte = document.getElementById("seccion-reporte-vendedor");
+  if (seccionReporte) {
+    seccionReporte.style.display = rolActual === "admin" ? "" : "none";
   }
 
   if (rolActual === "admin") {
     await cargarUsuariosAdmin();
     return;
+  }
+
+  // Para vendedora, las filas de Pedidos ya se dibujaron una vez en
+  // cargarDatosAdmin() con el rol todavía sin resolver (admin por
+  // default): se vuelven a pintar acá, ahora que se sabe el rol real y
+  // el vendedor_id vinculado, para aplicar el filtro y los botones de
+  // autoservicio correctos.
+  if (rolActual === "vendedora") {
+    renderTablasPedidos(pedidosAdmin);
   }
 
   const tabsPermitidas = TABS_POR_ROL[rolActual] || TABS_POR_ROL.vendedora;
@@ -2086,11 +2222,41 @@ async function cargarUsuariosAdmin() {
   try {
     usuariosAdmin = await obtenerPerfilesAdmin();
     renderUsuariosLista();
+    poblarSelectVendedorUsuario(document.getElementById("usuario-vendedor"), "");
   } catch (error) {
     // Si falla (por ejemplo, RLS bloqueando a alguien sin perfil todavía)
     // no debe romper el resto del panel: la pestaña de Usuarios
     // simplemente queda vacía.
   }
+}
+
+// Llena un <select> de vendedor/a (form de alta o fila en edición) con
+// las opciones de vendedoresAdmin, conservando la primera opción fija
+// ("— Ninguno —") que ya trae el HTML.
+function poblarSelectVendedorUsuario(select, vendedorIdSeleccionado) {
+  if (!select) return;
+
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+
+  vendedoresAdmin.forEach(function (vendedor) {
+    const opcion = document.createElement("option");
+    opcion.value = vendedor.id;
+    opcion.textContent = vendedor.nombre_completo + " (" + vendedor.provincia + ")";
+    opcion.selected = vendedorIdSeleccionado === vendedor.id;
+    select.appendChild(opcion);
+  });
+}
+
+// Nombre del vendedor/a vinculado a un usuario, para mostrarlo en la
+// lista de Usuarios (usuariosAdmin no trae el nombre, solo el id).
+function nombreVendedorVinculado(vendedorId) {
+  if (!vendedorId) return null;
+  const vendedor = vendedoresAdmin.find(function (v) {
+    return v.id === vendedorId;
+  });
+  return vendedor ? vendedor.nombre_completo : null;
 }
 
 function renderUsuariosLista() {
@@ -2137,7 +2303,9 @@ function renderUsuarioRowVista(fila, usuario) {
 
   const detalle = document.createElement("span");
   detalle.className = "vendedor-row-zeus";
-  detalle.textContent = etiquetaRol(usuario.rol) + (usuario.activo ? "" : " · Inactivo");
+  const nombreVendedor = nombreVendedorVinculado(usuario.vendedor_id);
+  detalle.textContent =
+    etiquetaRol(usuario.rol) + (nombreVendedor ? " · " + nombreVendedor : "") + (usuario.activo ? "" : " · Inactivo");
   info.appendChild(detalle);
 
   fila.appendChild(info);
@@ -2228,6 +2396,15 @@ function renderUsuarioRowEdicion(fila, usuario) {
   selectRol.disabled = usuario.id === usuarioActualId;
   campos.appendChild(selectRol);
 
+  const selectVendedor = document.createElement("select");
+  selectVendedor.className = "form-input";
+  const opcionNinguno = document.createElement("option");
+  opcionNinguno.value = "";
+  opcionNinguno.textContent = "— Ninguno —";
+  selectVendedor.appendChild(opcionNinguno);
+  poblarSelectVendedorUsuario(selectVendedor, usuario.vendedor_id);
+  campos.appendChild(selectVendedor);
+
   fila.appendChild(campos);
 
   const acciones = document.createElement("div");
@@ -2245,7 +2422,11 @@ function renderUsuarioRowEdicion(fila, usuario) {
     if (!nombreNuevo) return;
 
     try {
-      await actualizarPerfilAdmin(usuario.id, { nombre: nombreNuevo, rol: selectRol.value });
+      await actualizarPerfilAdmin(usuario.id, {
+        nombre: nombreNuevo,
+        rol: selectRol.value,
+        vendedor_id: selectVendedor.value || null,
+      });
       await cargarUsuariosAdmin();
       mostrarToast("Usuario actualizado.", "success");
     } catch (error) {
@@ -2275,9 +2456,10 @@ async function manejarSubmitAgregarUsuario(evento) {
   const id = document.getElementById("usuario-id").value.trim();
   const nombre = document.getElementById("usuario-nombre").value.trim();
   const rol = document.getElementById("usuario-rol").value;
+  const vendedorId = document.getElementById("usuario-vendedor").value || null;
 
   try {
-    await crearPerfilAdmin(id, nombre, rol);
+    await crearPerfilAdmin(id, nombre, rol, vendedorId);
     document.getElementById("form-add-usuario").reset();
     await cargarUsuariosAdmin();
     mostrarToast("Usuario asignado correctamente.", "success");

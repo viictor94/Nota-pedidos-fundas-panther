@@ -722,7 +722,7 @@
           </div>
         </section>
 
-        <section class="admin-card">
+        <section class="admin-card" id="seccion-reporte-vendedor">
           <h2>📊 Reporte por Vendedor/a</h2>
           <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.95rem;">
             Tocá un vendedor/a para ver sus últimos pedidos, o descargar su historial completo en Excel.
@@ -804,7 +804,7 @@
           <ul style="color: var(--color-text-light); margin: 0 0 1rem 1.1rem; font-size: 0.85rem; line-height: 1.5;">
             <li><strong>Admin:</strong> acceso total al panel.</li>
             <li><strong>Editor de Catálogo:</strong> Stock y Precios, Categorías y Vendedores. No ve Pedidos ni Usuarios.</li>
-            <li><strong>Vendedora:</strong> solo Gestión Pedidos, de solo lectura.</li>
+            <li><strong>Vendedora:</strong> Gestión Pedidos: puede tomar pedidos sin asignar y marcar como completados los suyos, sin depender del admin.</li>
           </ul>
           <form id="form-add-usuario" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
             <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
@@ -823,14 +823,23 @@
                 <option value="admin">Admin</option>
               </select>
             </div>
+            <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+              <label class="form-label" for="usuario-vendedor">Vendedor/a vinculado/a</label>
+              <select id="usuario-vendedor" class="form-input">
+                <option value="">— Ninguno —</option>
+              </select>
+            </div>
             <button type="submit" class="btn-primary" style="width: auto; padding: 0.65rem 1.25rem;">➕ Asignar</button>
           </form>
+          <p style="color: var(--color-text-light); margin-top: 0.5rem; font-size: 0.82rem;">
+            El vendedor/a vinculado/a solo tiene sentido para rol Vendedora: es lo que le permite tomar y completar sus propios pedidos en Gestión Pedidos.
+          </p>
         </section>
 
         <section class="admin-card">
           <h2>👤 Usuarios con acceso</h2>
           <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.9rem;">
-            Un rol <strong>Vendedora</strong> solo ve la pestaña "Gestión Pedidos" (de solo lectura); un rol <strong>Admin</strong> ve y edita todo el panel.
+            Un rol <strong>Vendedora</strong> solo ve la pestaña "Gestión Pedidos"; un rol <strong>Admin</strong> ve y edita todo el panel.
           </p>
           <div id="usuarios-lista">
             <!-- Filas generadas vía JS -->

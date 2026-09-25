@@ -119,11 +119,13 @@
         </div>
 
         <div class="form-group vendor-select-box">
-          <label class="form-label" for="customer-vendedor">🧑‍💼 ¿Tenés un vendedor/a de preferencia?</label>
-          <select id="customer-vendedor" class="form-input">
-            <option value="">Sin preferencia</option>
+          <label class="form-label" for="customer-vendedor">🧑‍💼 ¿Quién te va a atender? *</label>
+          <select id="customer-vendedor" class="form-input" required>
+            <option value="" disabled selected>Elegí una opción</option>
+            <option value="cualquiera">🤝 Cualquier vendedora disponible</option>
           </select>
-          <p class="vendor-select-hint">Es opcional: si no elegís a nadie, tu pedido queda sin vendedor/a asignado y nuestro equipo se encarga de asignarte uno.</p>
+          <p class="vendor-select-hint">Elegí un vendedor/a si ya tenés uno de preferencia, o dejá "Cualquier vendedora disponible" para que lo tome la primera que esté libre.</p>
+          <p class="form-error" id="customer-vendedor-error" hidden>Elegí un vendedor/a o "Cualquier vendedora disponible".</p>
         </div>
 
         <h3>Detalle del Pedido</h3>

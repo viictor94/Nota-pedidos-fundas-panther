@@ -139,15 +139,16 @@ function formatearMoneda(numero) {
   }).format(Number(numero));
 }
 
-// Llena el desplegable opcional del checkout con los vendedores activos
+// Llena el desplegable del checkout con los vendedores activos
 // (id/nombre/provincia, vía la RPC pública obtener_vendedores_publico).
-// Conserva la primera opción ("Sin preferencia...") que ya trae el HTML.
+// Conserva las primeras dos opciones fijas que ya trae el HTML (el
+// placeholder deshabilitado y "Cualquier vendedora disponible").
 function renderSelectVendedores() {
   const select = document.getElementById("customer-vendedor");
   if (!select) return;
 
-  while (select.options.length > 1) {
-    select.remove(1);
+  while (select.options.length > 2) {
+    select.remove(2);
   }
 
   vendedoresDisponibles.forEach(function (vendedor) {
@@ -1143,6 +1144,13 @@ async function manejarSubmitCheckout(evento) {
   }
   ocultarErrorCampo("customer-phone-error");
 
+  const vendedorElegido = document.getElementById("customer-vendedor").value;
+  if (!vendedorElegido) {
+    mostrarErrorCampo("customer-vendedor-error");
+    return;
+  }
+  ocultarErrorCampo("customer-vendedor-error");
+
   const boton = document.getElementById("btn-confirm-order");
   boton.disabled = true;
 
@@ -1154,11 +1162,11 @@ async function manejarSubmitCheckout(evento) {
 
     const nombre = document.getElementById("customer-name").value.trim();
 
-    // Si el cliente no eligió vendedor/a preferido, el pedido queda sin
-    // asignar (vendedor_id null) para que el admin lo asigne a mano
-    // desde el panel, en vez de auto-asignarlo.
-    const vendedorElegido = document.getElementById("customer-vendedor").value;
-    const vendedorId = vendedorElegido || null;
+    // La elección de vendedor/a es obligatoria: "cualquiera" (el cliente
+    // eligió "Cualquier vendedora disponible") se guarda igual que antes
+    // como vendedor_id null, para que la primera vendedora libre lo tome
+    // desde su panel (ver tomar_pedido en supabase/schema.sql).
+    const vendedorId = vendedorElegido === "cualquiera" ? null : vendedorElegido;
 
     const items = obtenerItemsCarrito().map(function (item) {
       return {

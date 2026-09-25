@@ -270,6 +270,26 @@ async function eliminarPedido(id) {
   }
 }
 
+// Autoservicio de pedidos para vendedoras (rol "vendedora" en el panel):
+// tomar un pedido sin asignar (o confirmar el propio) y marcar como
+// completado uno que ya es suyo, sin depender de que el admin lo haga.
+// Ver tomar_pedido/completar_pedido_propio en supabase/schema.sql.
+async function tomarPedido(id) {
+  const { data, error } = await supabaseClient.rpc("tomar_pedido", { p_id: id });
+  if (error) {
+    throw error;
+  }
+  return data && data.length > 0 ? data[0] : { ok: false, motivo: "error", vendedor_nombre: null };
+}
+
+async function completarPedidoPropio(id) {
+  const { data, error } = await supabaseClient.rpc("completar_pedido_propio", { p_id: id });
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
 // ---------------------------------------------------------------------
 // Vendedores: lectura pública liviana (checkout del cliente)
 // ---------------------------------------------------------------------
@@ -355,7 +375,7 @@ async function obtenerPerfilActual() {
 
   const { data, error } = await supabaseClient
     .from("perfiles_admin")
-    .select("nombre, rol")
+    .select("nombre, rol, vendedor_id")
     .eq("id", usuario.id)
     .maybeSingle();
 
@@ -370,7 +390,7 @@ async function obtenerPerfilActual() {
 async function obtenerPerfilesAdmin() {
   const { data, error } = await supabaseClient
     .from("perfiles_admin")
-    .select("id, nombre, rol, activo")
+    .select("id, nombre, rol, activo, vendedor_id")
     .order("nombre", { ascending: true });
 
   if (error) {
@@ -381,11 +401,13 @@ async function obtenerPerfilesAdmin() {
 
 // Asigna nombre/rol a una cuenta de Supabase Auth ya creada desde el
 // Dashboard (no crea la cuenta en sí: eso requeriría la Service Role
-// Key, que nunca debe exponerse en el navegador).
-async function crearPerfilAdmin(id, nombre, rol) {
+// Key, que nunca debe exponerse en el navegador). "vendedorId" vincula
+// esta cuenta con su fila en "vendedores" (necesario para que pueda usar
+// tomar_pedido/completar_pedido_propio); solo aplica a rol "vendedora".
+async function crearPerfilAdmin(id, nombre, rol, vendedorId) {
   const { data, error } = await supabaseClient
     .from("perfiles_admin")
-    .insert({ id: id, nombre: nombre, rol: rol })
+    .insert({ id: id, nombre: nombre, rol: rol, vendedor_id: vendedorId || null })
     .select()
     .single();
 
