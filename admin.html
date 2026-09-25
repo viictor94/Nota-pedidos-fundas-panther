@@ -440,8 +440,8 @@
   <!-- PANTALLA DE BLOQUEO / SEGURIDAD (login individual) -->
   <div id="lock-screen" class="lock-screen">
     <div class="lock-card">
-      <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔒</div>
-      <h2 style="margin-bottom: 0.5rem; color: var(--color-primary);">Acceso Administrador</h2>
+      <img class="header-logo-img" src="" alt="Panther Distribuciones" style="height: 56px; width: auto; object-fit: contain; margin: 0 auto 1rem;">
+      <h2 style="margin-bottom: 0.5rem; color: var(--color-primary);">🔒 Acceso Administrador</h2>
       <p style="color: var(--color-text-light); font-size: 0.875rem; margin-bottom: 1.5rem;">
         Ingresá tu email y contraseña para acceder al panel de gestión.
       </p>
@@ -470,9 +470,12 @@
   <div id="admin-main-content" style="display: none;">
     <header class="admin-header">
       <div class="admin-header-content">
-        <div>
-          <h1 style="font-size: 1.35rem; color: var(--color-primary); margin: 0;">Panel de Control</h1>
-          <small style="color: var(--color-text-light);">Actualizador de Precios, Stock, Modelos y Fotos</small>
+        <div style="display: flex; align-items: center; gap: 0.85rem;">
+          <img class="header-logo-img" src="" alt="Panther Distribuciones" style="height: 38px; width: auto; object-fit: contain;">
+          <div>
+            <h1 style="font-size: 1.35rem; color: var(--color-primary); margin: 0;">Panel de Control</h1>
+            <small style="color: var(--color-text-light);">Actualizador de Precios, Stock, Modelos y Fotos</small>
+          </div>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center;">
           <button type="button" id="btn-open-config" class="btn-secondary" style="margin: 0; width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;" aria-label="Configuración general" title="Configuración general">
@@ -950,6 +953,7 @@
   <script src="assets/js/supabase-client.js"></script>
   <!-- Datos iniciales y lógica del panel -->
   <script src="assets/js/data.js"></script>
+  <script src="assets/js/logo.js"></script>
   <script src="assets/js/excel-generator.js"></script>
   <script src="assets/js/admin.js"></script>
 </body>

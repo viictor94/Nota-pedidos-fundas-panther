@@ -16,32 +16,28 @@
     <p>Cargando catálogo...</p>
   </div>
 
-  <header style="background: white; border-bottom: 1.5px solid rgba(62, 134, 60, 0.15); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04); padding: 0.85rem 1.25rem;">
-    <div style="max-width: 1200px; margin: 0 auto;">
+  <header class="site-header">
+    <h1 class="sr-only">Nota de pedidos Fundas - Panther Distribuciones</h1>
+    <div class="site-header-inner">
+      <img src="" alt="Panther Distribuciones" class="site-logo header-logo-img">
 
-      <!-- Título arriba, centrado -->
-      <h1 style="margin: 0 0 0.5rem; font-size: 1.25rem; font-weight: 800; color: var(--color-text); line-height: 1.2; text-align: center;">
-        Nota de pedidos Fundas
-      </h1>
-
-      <!-- Ícono centrado abajo; fecha y carrito a un costado -->
-      <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.75rem;">
-        <div></div>
-        <img id="header-logo" src="" alt="Panther Distribuciones" style="height: 78px; max-height: 85px; width: auto; object-fit: contain; justify-self: center;">
-        <div style="display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 0.35rem; justify-self: end;">
-          <p id="catalog-last-updated" style="margin: 0; font-size: 0.8rem; color: var(--color-text-light); font-weight: 500;">
-            🔄 Actualizado: <span id="last-updated-text" style="color: var(--color-primary); font-weight: 700;">Cargando...</span>
-          </p>
-          <a href="admin.html" title="Acceso Administrador" aria-label="Acceso Administrador" style="color: #9ca3af; text-decoration: none; font-size: 0.95rem; line-height: 1;">
-            🔒
-          </a>
-          <button id="btn-header-cart" class="header-cart-btn" style="display: none; text-align: center;">
-            <span>🛒 Ver Pedido (<span id="header-cart-count">0</span>)</span>
-          </button>
-        </div>
+      <div class="site-search-wrap">
+        <span class="site-search-icon" aria-hidden="true">🔍</span>
+        <input type="search" id="search-input" class="site-search-input" placeholder="Buscar por nombre o código...">
       </div>
 
+      <div class="site-header-actions">
+        <button type="button" id="btn-header-cart" class="header-cart-btn" aria-label="Ver pedido">
+          <span aria-hidden="true">🛒</span>
+          <span id="header-cart-count" class="header-cart-badge">0</span>
+        </button>
+        <a href="admin.html" class="site-admin-link" title="Acceso Administrador" aria-label="Acceso Administrador">🔒</a>
+      </div>
     </div>
+
+    <p id="catalog-last-updated" class="site-updated-bar">
+      🔄 Actualizado: <span id="last-updated-text">Cargando...</span>
+    </p>
   </header>
 
   <main class="container">
@@ -70,11 +66,38 @@
         </div>
       </div>
 
-      <div id="category-chips" class="category-chips" role="tablist" aria-label="Filtrar por categoría">
-        <!-- Chips insertados vía JS: "Todos" + una por categoría activa -->
+      <div class="catalog-toolbar">
+        <div id="category-chips" class="category-chips" role="tablist" aria-label="Filtrar por categoría">
+          <!-- Chips insertados vía JS: "Todos" + una por categoría activa -->
+        </div>
+        <div class="view-toggle" role="group" aria-label="Cambiar tipo de vista">
+          <button type="button" id="btn-vista-grid" class="view-toggle-btn active" aria-label="Ver en grilla" title="Ver en grilla">▦</button>
+          <button type="button" id="btn-vista-lista" class="view-toggle-btn" aria-label="Ver en lista" title="Ver en lista">☰</button>
+        </div>
       </div>
+
       <div id="catalog-grid" class="catalog-grid">
         <!-- Los productos se insertan aquí vía JS -->
+      </div>
+
+      <!-- Vista de lista: una fila de título por producto (con botón
+           "Ver" que abre el modal con la foto) seguida de una fila por
+           cada variante, para agregar directo sin abrir el modal. -->
+      <div id="catalog-list-wrap" class="catalog-list-wrap" style="display: none;">
+        <table id="catalog-list" class="catalog-list-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Categoría</th>
+              <th>Precio</th>
+              <th>Agregar</th>
+            </tr>
+          </thead>
+          <tbody id="catalog-list-body">
+            <!-- Filas insertadas vía JS -->
+          </tbody>
+        </table>
       </div>
 
       <!-- Sentinela para scroll infinito: cuando entra en pantalla se

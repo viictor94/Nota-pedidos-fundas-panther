@@ -25,6 +25,9 @@ let vendedoresDisponibles = []; // Para el desplegable opcional "Vendedor/a pref
 let categoriasDisponibles = []; // Categorías activas, para los chips de filtro.
 let categoriaActivaId = null; // null = chip "Todos"
 
+let terminoBusqueda = ""; // Texto del buscador (ya en minúsculas), filtra por nombre de producto o SKU de variante.
+let vistaActual = "grid"; // "grid" (tarjetas) o "lista" (tabla), elegido con el toggle de la barra de herramientas.
+
 // Carrito: mapa varianteId -> { productoId, productoNombre, varianteId, sku, modelo, precioUnitario, cantidad }
 let carrito = {};
 
@@ -212,6 +215,8 @@ function wireEventosEstaticos() {
   document.getElementById("btn-back-catalog").addEventListener("click", volverAlCatalogo);
   configurarScrollInfinito();
   configurarCarruseles();
+  configurarBuscador();
+  configurarToggleVista();
 
   document.getElementById("btn-close-modal").addEventListener("click", cerrarModalVariantes);
   document.getElementById("btn-modal-listo").addEventListener("click", cerrarModalVariantes);
@@ -278,27 +283,74 @@ function crearChipCategoria(id, nombre) {
 // Catálogo completo si el chip activo es "Todos", o solo los productos
 // de la categoría elegida.
 function obtenerCatalogoFiltrado() {
-  if (categoriaActivaId === null) {
-    return catalogoCompleto;
+  let resultado = catalogoCompleto;
+
+  if (categoriaActivaId !== null) {
+    resultado = resultado.filter(function (producto) {
+      return producto.categoria_id === categoriaActivaId;
+    });
   }
-  return catalogoCompleto.filter(function (producto) {
-    return producto.categoria_id === categoriaActivaId;
+
+  if (terminoBusqueda) {
+    resultado = resultado.filter(function (producto) {
+      const coincideNombre = producto.nombre.toLowerCase().includes(terminoBusqueda);
+      const coincideSku = producto.variantes.some(function (variante) {
+        return (variante.sku || "").toLowerCase().includes(terminoBusqueda);
+      });
+      return coincideNombre || coincideSku;
+    });
+  }
+
+  return resultado;
+}
+
+// Buscador de texto libre (nombre de producto o SKU de variante): filtra
+// en memoria sobre catalogoCompleto, mismo mecanismo que los chips de
+// categoría, sin pedir nada nuevo a Supabase.
+function configurarBuscador() {
+  document.getElementById("search-input").addEventListener("input", function (evento) {
+    terminoBusqueda = evento.target.value.trim().toLowerCase();
+    productosVisibles = PRODUCTOS_POR_PAGINA;
+    renderCatalogo();
+    seguirCargandoSiSentinelaVisible();
   });
+}
+
+// Toggle Grilla/Lista de la barra de herramientas: alterna qué
+// contenedor está visible y re-renderiza con los productos ya visibles
+// (no hace falta volver a pedir nada, ambas vistas leen el mismo array).
+function configurarToggleVista() {
+  document.getElementById("btn-vista-grid").addEventListener("click", function () {
+    cambiarVista("grid");
+  });
+  document.getElementById("btn-vista-lista").addEventListener("click", function () {
+    cambiarVista("lista");
+  });
+}
+
+function cambiarVista(vista) {
+  if (vista === vistaActual) {
+    return;
+  }
+  vistaActual = vista;
+  document.getElementById("btn-vista-grid").classList.toggle("active", vista === "grid");
+  document.getElementById("btn-vista-lista").classList.toggle("active", vista === "lista");
+  document.getElementById("catalog-grid").style.display = vista === "grid" ? "grid" : "none";
+  document.getElementById("catalog-list-wrap").style.display = vista === "lista" ? "block" : "none";
+  renderCatalogo();
 }
 
 function renderCatalogo() {
   renderCarruseles();
 
-  const grid = document.getElementById("catalog-grid");
-  while (grid.firstChild) {
-    grid.removeChild(grid.firstChild);
-  }
-
   const catalogoFiltrado = obtenerCatalogoFiltrado();
   const visibles = catalogoFiltrado.slice(0, productosVisibles);
-  visibles.forEach(function (producto) {
-    grid.appendChild(crearTarjetaProducto(producto));
-  });
+
+  if (vistaActual === "lista") {
+    renderListaProductos(visibles);
+  } else {
+    renderGrillaProductos(visibles);
+  }
 
   const restantes = catalogoFiltrado.length - visibles.length;
   if (restantes > 0) {
@@ -306,6 +358,140 @@ function renderCatalogo() {
   } else {
     mostrarMensajeCarga(catalogoFiltrado.length > 0 ? "Viste todo el catálogo ✓" : "");
   }
+}
+
+function renderGrillaProductos(visibles) {
+  const grid = document.getElementById("catalog-grid");
+  while (grid.firstChild) {
+    grid.removeChild(grid.firstChild);
+  }
+  visibles.forEach(function (producto) {
+    grid.appendChild(crearTarjetaProducto(producto));
+  });
+}
+
+// Vista de lista: una fila de título por producto (nombre + botón "Ver"
+// que abre el mismo modal de siempre, con la foto) seguida de una fila
+// por cada variante para agregarla directo sin abrir el modal.
+function renderListaProductos(visibles) {
+  const cuerpo = document.getElementById("catalog-list-body");
+  while (cuerpo.firstChild) {
+    cuerpo.removeChild(cuerpo.firstChild);
+  }
+  visibles.forEach(function (producto) {
+    cuerpo.appendChild(crearFilaTituloLista(producto));
+    producto.variantes.forEach(function (variante) {
+      cuerpo.appendChild(crearFilaVarianteLista(producto, variante));
+    });
+  });
+}
+
+function crearFilaTituloLista(producto) {
+  const fila = document.createElement("tr");
+  fila.className = "list-title-row";
+
+  const celda = document.createElement("td");
+  celda.colSpan = 5;
+
+  const contenedor = document.createElement("div");
+  contenedor.className = "list-title-row-inner";
+
+  const nombre = document.createElement("span");
+  nombre.className = "list-title-row-name";
+  nombre.textContent = (producto.en_promo ? "🔥 " : "") + (producto.es_nuevo ? "🆕 " : "") + producto.nombre;
+  contenedor.appendChild(nombre);
+
+  const btnVer = document.createElement("button");
+  btnVer.type = "button";
+  btnVer.className = "btn-ver-funda";
+  btnVer.textContent = "👁️ Ver";
+  btnVer.addEventListener("click", function () {
+    abrirModalVariantes(producto);
+  });
+  contenedor.appendChild(btnVer);
+
+  celda.appendChild(contenedor);
+  fila.appendChild(celda);
+  return fila;
+}
+
+function crearFilaVarianteLista(producto, variante) {
+  const fila = document.createElement("tr");
+  fila.className = "list-variant-row";
+
+  const celdaCodigo = document.createElement("td");
+  celdaCodigo.className = "list-col-codigo";
+  celdaCodigo.textContent = variante.sku;
+  fila.appendChild(celdaCodigo);
+
+  const celdaDescripcion = document.createElement("td");
+  celdaDescripcion.textContent = variante.modelo;
+  fila.appendChild(celdaDescripcion);
+
+  const celdaCategoria = document.createElement("td");
+  celdaCategoria.textContent = (producto.categorias && producto.categorias.nombre) || "-";
+  fila.appendChild(celdaCategoria);
+
+  const celdaPrecio = document.createElement("td");
+  const precioTachado = calcularPrecioTachado(variante, producto);
+  if (precioTachado !== null) {
+    const viejo = document.createElement("span");
+    viejo.className = "list-precio-old";
+    viejo.textContent = formatearMoneda(precioTachado);
+    celdaPrecio.appendChild(viejo);
+  }
+  const precioActual = document.createElement("span");
+  precioActual.className = "list-precio-actual";
+  precioActual.textContent = formatearMoneda(variante.precio_actual);
+  celdaPrecio.appendChild(precioActual);
+  fila.appendChild(celdaPrecio);
+
+  const celdaAgregar = document.createElement("td");
+  const sinStock = variante.stock_estado === "SIN STOCK";
+
+  if (sinStock) {
+    const badge = document.createElement("span");
+    badge.className = "stock-badge " + claseCssStock(variante.stock_estado);
+    badge.textContent = variante.stock_estado;
+    celdaAgregar.appendChild(badge);
+  } else {
+    const control = document.createElement("div");
+    control.className = "qty-control qty-control-compact";
+
+    const btnMenos = document.createElement("button");
+    btnMenos.type = "button";
+    btnMenos.className = "qty-btn qty-btn-sm";
+    btnMenos.textContent = "−";
+
+    const valor = document.createElement("span");
+    valor.className = "qty-value";
+    valor.textContent = String((carrito[variante.id] && carrito[variante.id].cantidad) || 0);
+
+    const btnMas = document.createElement("button");
+    btnMas.type = "button";
+    btnMas.className = "qty-btn qty-btn-sm";
+    btnMas.textContent = "+";
+
+    btnMenos.addEventListener("click", function () {
+      const notaActual = (carrito[variante.id] && carrito[variante.id].nota) || "";
+      cambiarCantidadCarrito(producto, variante, -1, notaActual);
+      valor.textContent = String((carrito[variante.id] && carrito[variante.id].cantidad) || 0);
+    });
+
+    btnMas.addEventListener("click", function () {
+      const notaActual = (carrito[variante.id] && carrito[variante.id].nota) || "";
+      cambiarCantidadCarrito(producto, variante, 1, notaActual);
+      valor.textContent = String((carrito[variante.id] && carrito[variante.id].cantidad) || 0);
+    });
+
+    control.appendChild(btnMenos);
+    control.appendChild(valor);
+    control.appendChild(btnMas);
+    celdaAgregar.appendChild(control);
+  }
+  fila.appendChild(celdaAgregar);
+
+  return fila;
 }
 
 // Reemplaza el contenido del cartel al pie de la grilla por texto
@@ -938,8 +1124,10 @@ function actualizarUiCarrito() {
   const cantidad = obtenerCantidadTotalCarrito();
   const total = obtenerTotalCarrito();
 
+  // El ícono del carrito ahora queda siempre visible en el header (con
+  // el contador en 0), en vez de aparecer/desaparecer según si hay algo
+  // cargado; hacer click estando vacío no hace nada (ver mostrarCheckout).
   document.getElementById("header-cart-count").textContent = String(cantidad);
-  document.getElementById("btn-header-cart").style.display = cantidad > 0 ? "inline-flex" : "none";
 
   // El span de preview del total tiene el formato "$X (N art.)"; se
   // reconstruye completo para evitar depender de nodos de texto sueltos.
