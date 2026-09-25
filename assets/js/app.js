@@ -26,6 +26,7 @@ let categoriasDisponibles = []; // Categorías activas, para los chips de filtro
 let categoriaActivaId = null; // null = chip "Todos"
 
 let terminoBusqueda = ""; // Texto del buscador (ya en minúsculas), filtra por nombre de producto o SKU de variante.
+let terminoBusquedaOriginal = ""; // Mismo texto tal cual lo tipeó el cliente, solo para mostrarlo en "Resultados para...".
 let vistaActual = "grid"; // "grid" (tarjetas) o "lista" (tabla), elegido con el toggle de la barra de herramientas.
 
 // Carrito: mapa varianteId -> { productoId, productoNombre, varianteId, sku, modelo, precioUnitario, cantidad }
@@ -335,11 +336,40 @@ function obtenerCatalogoFiltrado() {
 // categoría, sin pedir nada nuevo a Supabase.
 function configurarBuscador() {
   document.getElementById("search-input").addEventListener("input", function (evento) {
-    terminoBusqueda = evento.target.value.trim().toLowerCase();
+    terminoBusquedaOriginal = evento.target.value.trim();
+    terminoBusqueda = terminoBusquedaOriginal.toLowerCase();
     productosVisibles = PRODUCTOS_POR_PAGINA;
     renderCatalogo();
     seguirCargandoSiSentinelaVisible();
   });
+
+  document.getElementById("btn-clear-search").addEventListener("click", function () {
+    const input = document.getElementById("search-input");
+    input.value = "";
+    terminoBusqueda = "";
+    terminoBusquedaOriginal = "";
+    productosVisibles = PRODUCTOS_POR_PAGINA;
+    renderCatalogo();
+    seguirCargandoSiSentinelaVisible();
+    input.focus();
+  });
+}
+
+// Mientras hay algo escrito en el buscador, se ocultan Categorías y
+// Promociones (no aportan nada durante una búsqueda de texto libre, y
+// antes tapaban el feedback: se podía escribir sin ver si el buscador
+// filtraba algo hasta bajar al listado) y se muestra un cartel con lo
+// que se está buscando y un botón para limpiarlo.
+function actualizarVisibilidadPorBusqueda() {
+  const buscando = terminoBusqueda.length > 0;
+
+  document.getElementById("categorias-section").style.display = buscando ? "none" : "";
+
+  const infoBox = document.getElementById("search-results-info");
+  infoBox.style.display = buscando ? "flex" : "none";
+  if (buscando) {
+    document.getElementById("search-results-text").textContent = 'Resultados para: "' + terminoBusquedaOriginal + '"';
+  }
 }
 
 // Toggle Grilla/Lista de la barra de herramientas: alterna qué
@@ -367,6 +397,7 @@ function cambiarVista(vista) {
 }
 
 function renderCatalogo() {
+  actualizarVisibilidadPorBusqueda();
   renderCarruseles();
 
   const catalogoFiltrado = obtenerCatalogoFiltrado();
@@ -632,7 +663,7 @@ function renderFilaDestacados(idWrap, idTrack, productos) {
     track.removeChild(track.firstChild);
   }
 
-  if (productos.length === 0) {
+  if (productos.length === 0 || terminoBusqueda) {
     wrap.style.display = "none";
     return;
   }

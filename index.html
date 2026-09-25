@@ -48,18 +48,31 @@
     <!-- Sección de Catálogo -->
     <section id="catalog-section" class="catalog-section active">
 
+      <!-- Cartel de resultados: reemplaza a Categorías/Promociones
+           mientras hay algo escrito en el buscador del header, para que
+           quede claro que la búsqueda sí está filtrando (antes, con
+           las categorías/promos siempre visibles arriba, no había forma
+           de saber si el buscador estaba haciendo algo sin bajar hasta
+           el listado). Ver actualizarVisibilidadPorBusqueda en app.js. -->
+      <div id="search-results-info" class="search-results-info" style="display: none;">
+        <span id="search-results-text"></span>
+        <button type="button" id="btn-clear-search" class="btn-clear-search">✕ Limpiar búsqueda</button>
+      </div>
+
       <!-- Tarjetas de categoría: imagen (silueta sin fondo, cargada
            desde el admin) + nombre. "Todos" + una por categoría activa.
            Al tocar una se filtra la grilla/lista de abajo. Van primero
            en la página: es el primer punto de contacto del cliente con
            el catálogo. -->
-      <h2 class="carousel-title">Categorías</h2>
-      <div id="category-cards" class="category-cards" role="tablist" aria-label="Filtrar por categoría">
-        <!-- Tarjetas insertadas vía JS -->
+      <div id="categorias-section">
+        <h2 class="carousel-title">Categorías</h2>
+        <div id="category-cards" class="category-cards" role="tablist" aria-label="Filtrar por categoría">
+          <!-- Tarjetas insertadas vía JS -->
+        </div>
       </div>
 
       <!-- Fila estática de "Promociones" (solo se muestra si hay
-           productos marcados como en_promo). -->
+           productos marcados como en_promo, y no se está buscando). -->
       <div id="carousel-promos-wrap" class="carousel-wrap" style="display: none;">
         <h2 class="carousel-title">🔥 Promociones</h2>
         <div id="carousel-promos" class="destacados-scroll"></div>
