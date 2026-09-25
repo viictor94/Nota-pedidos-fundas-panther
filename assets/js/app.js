@@ -452,9 +452,17 @@ function crearFilaVarianteLista(producto, variante) {
 
   const celdaDescripcion = document.createElement("td");
   celdaDescripcion.textContent = variante.modelo;
+  // En mobile se ocultan las columnas Código/Categoría (ver media query
+  // en styles.css) para no obligar a scrollear horizontalmente; este
+  // sub-texto es la única forma en que el código sigue visible ahí.
+  const codigoInline = document.createElement("span");
+  codigoInline.className = "list-col-codigo-mobile";
+  codigoInline.textContent = variante.sku;
+  celdaDescripcion.appendChild(codigoInline);
   fila.appendChild(celdaDescripcion);
 
   const celdaCategoria = document.createElement("td");
+  celdaCategoria.className = "list-col-categoria";
   celdaCategoria.textContent = (producto.categorias && producto.categorias.nombre) || "-";
   fila.appendChild(celdaCategoria);
 

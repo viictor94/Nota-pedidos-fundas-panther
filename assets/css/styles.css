@@ -546,6 +546,36 @@ a {
   border-bottom: none;
 }
 
+/* Código de la variante repetido chiquito debajo de la descripción,
+   solo visible en mobile (ver media query abajo): en desktop ya tiene
+   su propia columna, mostrarlo dos veces sería ruido. */
+.list-col-codigo-mobile {
+  display: none;
+}
+
+/* En una pantalla angosta, Código y Categoría (columnas 1 y 3 de 5) no
+   entran junto con Precio/Agregar sin forzar scroll horizontal. Se
+   ocultan esas dos columnas: el código pasa a mostrarse como sub-texto
+   dentro de Descripción (list-col-codigo-mobile) y la categoría no hace
+   falta repetirla fila por fila porque el cliente ya filtró por
+   categoría con las tarjetas de arriba. Se mantiene la fila densa
+   (nada de layout de tarjeta apilada) para no perder la compacidad que
+   se pidió para esta vista. */
+@media (max-width: 640px) {
+  .catalog-list-table {
+    min-width: 0;
+  }
+  .list-col-codigo,
+  .list-col-categoria {
+    display: none;
+  }
+  .list-col-codigo-mobile {
+    display: block;
+    color: var(--color-text-light);
+    font-size: 0.72rem;
+  }
+}
+
 /* Fila de título del producto: agrupa sus variantes debajo, con el
    mismo look que el resto de la tabla pero destacada (fondo tenue). */
 .list-title-row td {
