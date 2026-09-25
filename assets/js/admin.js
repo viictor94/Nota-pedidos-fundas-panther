@@ -47,6 +47,7 @@ function wireEventosEstaticos() {
     ocultarModal(document.getElementById("modal-change-pin"));
   });
   document.getElementById("form-change-pin").addEventListener("submit", manejarSubmitCambiarPin);
+  document.getElementById("btn-logout").addEventListener("click", manejarClickCerrarSesion);
 
   document.getElementById("btn-open-config").addEventListener("click", function () {
     mostrarModal(document.getElementById("modal-config"));
@@ -195,6 +196,16 @@ async function manejarSubmitCambiarPin(evento) {
   document.getElementById("form-change-pin").reset();
   ocultarModal(document.getElementById("modal-change-pin"));
   mostrarToast("Contraseña actualizada correctamente.", "success");
+}
+
+// Cierra la sesión de Supabase Auth y recarga la página: como el
+// estado del panel (rolActual, pedidosAdmin, etc.) vive en variables
+// globales, recargar es la forma más simple y segura de dejar todo
+// limpio para el próximo login (vuelve a mostrar la pantalla de
+// acceso en vez del panel).
+async function manejarClickCerrarSesion() {
+  await cerrarSesionAdmin();
+  window.location.reload();
 }
 
 // ---------------------------------------------------------------------
