@@ -22,6 +22,9 @@ let configuracionApp = { whatsapp_vendedor: "" };
 let productosVisibles = PRODUCTOS_POR_PAGINA;
 let vendedoresDisponibles = []; // Para el desplegable opcional "Vendedor/a preferido/a" del checkout.
 
+let categoriasDisponibles = []; // Categorías activas, para los chips de filtro.
+let categoriaActivaId = null; // null = chip "Todos"
+
 // Carrito: mapa varianteId -> { productoId, productoNombre, varianteId, sku, modelo, precioUnitario, cantidad }
 let carrito = {};
 
@@ -41,10 +44,12 @@ document.addEventListener("DOMContentLoaded", async function () {
   wireEventosEstaticos();
 
   try {
-    const [catalogo, config] = await Promise.all([obtenerCatalogo(), obtenerConfig()]);
+    const [catalogo, config, categorias] = await Promise.all([obtenerCatalogo(), obtenerConfig(), obtenerCategorias()]);
     catalogoCompleto = ordenarDestacadosPrimero(catalogo);
     configuracionApp = config;
+    categoriasDisponibles = categorias;
     actualizarTextoUltimaActualizacion(config.catalogo_actualizado_en);
+    renderChipsCategoria();
     renderCatalogo();
     // En pantallas anchas (PC, grilla de 5 columnas) la primera tanda de
     // productos puede no llegar a llenar el alto de la ventana: hay que
@@ -231,6 +236,56 @@ function wireEventosEstaticos() {
 // Render del catálogo
 // ---------------------------------------------------------------------
 
+// Chips de categoría: "Todos" + una por categoría activa. Al tocar uno
+// se filtra la grilla de abajo (los carruseles de Promos/Nuevos no se
+// ven afectados, son transversales a categorías).
+function renderChipsCategoria() {
+  const contenedor = document.getElementById("category-chips");
+  if (!contenedor) return;
+
+  while (contenedor.firstChild) {
+    contenedor.removeChild(contenedor.firstChild);
+  }
+
+  contenedor.appendChild(crearChipCategoria(null, "Todos"));
+  categoriasDisponibles.forEach(function (categoria) {
+    contenedor.appendChild(crearChipCategoria(categoria.id, categoria.nombre));
+  });
+}
+
+function crearChipCategoria(id, nombre) {
+  const activo = categoriaActivaId === id;
+
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "category-chip" + (activo ? " active" : "");
+  chip.textContent = nombre;
+  chip.setAttribute("role", "tab");
+  chip.setAttribute("aria-selected", activo ? "true" : "false");
+
+  chip.addEventListener("click", function () {
+    if (categoriaActivaId === id) return;
+    categoriaActivaId = id;
+    productosVisibles = PRODUCTOS_POR_PAGINA;
+    renderChipsCategoria();
+    renderCatalogo();
+    seguirCargandoSiSentinelaVisible();
+  });
+
+  return chip;
+}
+
+// Catálogo completo si el chip activo es "Todos", o solo los productos
+// de la categoría elegida.
+function obtenerCatalogoFiltrado() {
+  if (categoriaActivaId === null) {
+    return catalogoCompleto;
+  }
+  return catalogoCompleto.filter(function (producto) {
+    return producto.categoria_id === categoriaActivaId;
+  });
+}
+
 function renderCatalogo() {
   renderCarruseles();
 
@@ -239,16 +294,17 @@ function renderCatalogo() {
     grid.removeChild(grid.firstChild);
   }
 
-  const visibles = catalogoCompleto.slice(0, productosVisibles);
+  const catalogoFiltrado = obtenerCatalogoFiltrado();
+  const visibles = catalogoFiltrado.slice(0, productosVisibles);
   visibles.forEach(function (producto) {
     grid.appendChild(crearTarjetaProducto(producto));
   });
 
-  const restantes = catalogoCompleto.length - visibles.length;
+  const restantes = catalogoFiltrado.length - visibles.length;
   if (restantes > 0) {
     mostrarMensajeCarga("Deslizá hacia abajo para ver más fundas ↓");
   } else {
-    mostrarMensajeCarga(catalogoCompleto.length > 0 ? "Viste todo el catálogo ✓" : "");
+    mostrarMensajeCarga(catalogoFiltrado.length > 0 ? "Viste todo el catálogo ✓" : "");
   }
 }
 
@@ -293,7 +349,7 @@ function configurarScrollInfinito() {
 let cargandoMasProductos = false;
 
 function cargarMasProductos() {
-  if (cargandoMasProductos || productosVisibles >= catalogoCompleto.length) {
+  if (cargandoMasProductos || productosVisibles >= obtenerCatalogoFiltrado().length) {
     return;
   }
   cargandoMasProductos = true;

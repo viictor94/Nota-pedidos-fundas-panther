@@ -331,11 +331,34 @@ a {
   background: var(--color-primary-light);
 }
 
-.catalog-full-title {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--color-text);
-  margin: 0 0 0.75rem;
+/* ---------- Chips de categoría ---------- */
+.category-chips {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  scrollbar-width: none; /* Firefox: el scroll sigue funcionando, solo se oculta la barra */
+}
+.category-chips::-webkit-scrollbar {
+  display: none;
+}
+.category-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-light);
+}
+.category-chip.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
 }
 
 .catalog-load-status {

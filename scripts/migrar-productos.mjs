@@ -245,6 +245,18 @@ async function migrarASupabase(productos, truncar) {
 
   const supabase = createClient(url, serviceKey);
 
+  // Este script migra específicamente el Excel de fundas (Productos.xlsx):
+  // todo lo que crea queda en la categoría "Fundas" (creada por el seed
+  // de supabase/schema.sql). Si en el futuro se migra otro rubro desde
+  // otro origen de datos, va a necesitar su propio script: el formato de
+  // Productos.xlsx (una hoja por producto, celdas fijas) es demasiado
+  // específico de fundas para generalizarlo acá.
+  const { data: categoriaFundas } = await supabase
+    .from("categorias")
+    .select("id")
+    .ilike("nombre", "fundas")
+    .maybeSingle();
+
   if (truncar) {
     console.log("Vaciando productos y variantes existentes (--truncate) ...");
     await supabase.from("variantes").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -260,7 +272,7 @@ async function migrarASupabase(productos, truncar) {
 
     const { data: filaProducto, error: errorProducto } = await supabase
       .from("productos")
-      .insert({ nombre: producto.nombre, orden: i })
+      .insert({ nombre: producto.nombre, orden: i, categoria_id: categoriaFundas ? categoriaFundas.id : null })
       .select()
       .single();
 

@@ -21,7 +21,7 @@ const ADMIN_EMAIL = "admin@panther.internal";
 async function obtenerCatalogo() {
   const { data, error } = await supabaseClient
     .from("productos")
-    .select("id, nombre, imagen_url, orden, en_promo, es_nuevo, variantes(id, sku, modelo, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
+    .select("id, nombre, imagen_url, orden, en_promo, es_nuevo, categoria_id, categorias(id, nombre), variantes(id, sku, modelo, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
     .eq("activo", true)
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
@@ -49,7 +49,7 @@ async function obtenerCatalogo() {
 async function obtenerCatalogoCompleto() {
   const { data, error } = await supabaseClient
     .from("productos")
-    .select("id, nombre, imagen_url, activo, orden, en_promo, es_nuevo, variantes(id, sku, modelo, descripcion_completa, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
+    .select("id, nombre, imagen_url, activo, orden, en_promo, es_nuevo, categoria_id, categorias(id, nombre), variantes(id, sku, modelo, descripcion_completa, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
 
@@ -57,6 +57,66 @@ async function obtenerCatalogoCompleto() {
     throw error;
   }
   return data;
+}
+
+// ---------------------------------------------------------------------
+// Categorías de producto
+// ---------------------------------------------------------------------
+
+// Solo activas, para los chips de filtro del catálogo cliente.
+async function obtenerCategorias() {
+  const { data, error } = await supabaseClient
+    .from("categorias")
+    .select("id, nombre, orden, activo")
+    .eq("activo", true)
+    .order("orden", { ascending: true })
+    .order("nombre", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+// Activas e inactivas, para el panel admin.
+async function obtenerCategoriasCompleto() {
+  const { data, error } = await supabaseClient
+    .from("categorias")
+    .select("id, nombre, orden, activo")
+    .order("orden", { ascending: true })
+    .order("nombre", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+async function crearCategoria(nombre) {
+  const { data, error } = await supabaseClient
+    .from("categorias")
+    .insert({ nombre: nombre })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+async function actualizarCategoria(id, campos) {
+  const { error } = await supabaseClient.from("categorias").update(campos).eq("id", id);
+  if (error) {
+    throw error;
+  }
+}
+
+async function eliminarCategoria(id) {
+  const { error } = await supabaseClient.from("categorias").delete().eq("id", id);
+  if (error) {
+    throw error;
+  }
 }
 
 // Configuración pública de la app (número de WhatsApp del vendedor,
@@ -283,10 +343,10 @@ async function actualizarConfig(campos) {
   }
 }
 
-async function crearProducto(nombre, imagenUrl) {
+async function crearProducto(nombre, imagenUrl, categoriaId) {
   const { data, error } = await supabaseClient
     .from("productos")
-    .insert({ nombre: nombre, imagen_url: imagenUrl || null })
+    .insert({ nombre: nombre, imagen_url: imagenUrl || null, categoria_id: categoriaId || null })
     .select()
     .single();
 

@@ -494,6 +494,7 @@
         <button type="button" class="admin-tab-btn active" data-tab="tab-stock">📊 Gestión Stock y Precios</button>
         <button type="button" class="admin-tab-btn" data-tab="tab-pedidos">🧾 Gestión Pedidos</button>
         <button type="button" class="admin-tab-btn" data-tab="tab-vendedores">🧑‍💼 Gestión Vendedores</button>
+        <button type="button" class="admin-tab-btn" data-tab="tab-categorias">🏷️ Categorías</button>
       </nav>
 
       <div id="tab-stock" class="admin-tab-panel active">
@@ -565,6 +566,13 @@
                   <input type="checkbox" id="checkbox-es-nuevo" style="width: 18px; height: 18px; accent-color: #2563eb;">
                   🆕 Marcar como NUEVO INGRESO
                 </label>
+              </div>
+
+              <div class="form-group" style="max-width: 320px;">
+                <label class="form-label" for="edit-product-category">Categoría</label>
+                <select id="edit-product-category" class="form-input">
+                  <option value="">Sin categoría</option>
+                </select>
               </div>
 
               <div class="photo-edit-box">
@@ -738,6 +746,27 @@
         </section>
       </div>
 
+      <!-- PESTAÑA: CATEGORÍAS -->
+      <div id="tab-categorias" class="admin-tab-panel">
+        <section class="admin-card">
+          <h2>➕ Agregar Categoría</h2>
+          <form id="form-add-categoria" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+            <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+              <label class="form-label" for="categoria-nombre">Nombre *</label>
+              <input type="text" id="categoria-nombre" class="form-input" required>
+            </div>
+            <button type="submit" class="btn-primary" style="width: auto; padding: 0.65rem 1.25rem;">➕ Agregar</button>
+          </form>
+        </section>
+
+        <section class="admin-card">
+          <h2>🏷️ Categorías existentes</h2>
+          <div id="categorias-lista">
+            <!-- Filas generadas vía JS -->
+          </div>
+        </section>
+      </div>
+
     </main>
   </div>
 
@@ -752,6 +781,13 @@
         <div class="form-group">
           <label class="form-label" for="new-product-name">Nombre de la Funda *</label>
           <input type="text" id="new-product-name" class="form-input" placeholder="Ej: TPU KIKIGO TITANIUM GLOW" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="new-product-category">Categoría</label>
+          <select id="new-product-category" class="form-input">
+            <option value="">Sin categoría</option>
+          </select>
         </div>
 
         <div class="form-group">

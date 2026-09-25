@@ -17,6 +17,7 @@ let productosAdmin = []; // Catálogo completo (activos e inactivos) con variant
 let productoSeleccionadoId = null;
 let vendedoresAdmin = []; // Para el desplegable de "Vendedor/a" en Pedidos y la pestaña de Vendedores.
 let pedidosAdmin = []; // Cache local para no repedir a Supabase en cada acción de la tabla/reporte.
+let categoriasAdmin = []; // Activas e inactivas, para la pestaña Categorías y los selects de producto.
 
 // ---------------------------------------------------------------------
 // Inicialización
@@ -109,6 +110,9 @@ function wireEventosEstaticos() {
 
   document.getElementById("form-add-vendedor").addEventListener("submit", manejarSubmitAgregarVendedor);
 
+  document.getElementById("form-add-categoria").addEventListener("submit", manejarSubmitAgregarCategoria);
+  document.getElementById("edit-product-category").addEventListener("change", manejarCambioCategoriaProducto);
+
   document.getElementById("btn-toggle-completados").addEventListener("click", function () {
     const wrap = document.getElementById("orders-completados-wrap");
     const btn = document.getElementById("btn-toggle-completados");
@@ -191,20 +195,24 @@ async function manejarSubmitCambiarPin(evento) {
 
 async function cargarDatosAdmin() {
   try {
-    const [config, catalogo, pedidos, vendedores] = await Promise.all([
+    const [config, catalogo, pedidos, vendedores, categorias] = await Promise.all([
       obtenerConfig(),
       obtenerCatalogoCompleto(),
       obtenerPedidos(),
       obtenerVendedores(),
+      obtenerCategoriasCompleto(),
     ]);
     document.getElementById("config-whatsapp").value = config.whatsapp_vendedor || "";
     productosAdmin = catalogo;
     vendedoresAdmin = vendedores;
     pedidosAdmin = pedidos;
+    categoriasAdmin = categorias;
     renderListaProductos("");
     renderTablasPedidos(pedidosAdmin);
     renderReporteVendedores(pedidosAdmin);
     renderVendedoresAgrupados();
+    renderCategoriasLista();
+    renderSelectsCategorias();
   } catch (error) {
     mostrarToast("No se pudieron cargar los datos del panel.", "error");
   }
@@ -1030,6 +1038,7 @@ function renderDetalleProducto(productoId) {
     producto.imagen_url || "assets/img/placeholder-producto.svg";
   document.getElementById("checkbox-en-promo").checked = Boolean(producto.en_promo);
   document.getElementById("checkbox-es-nuevo").checked = Boolean(producto.es_nuevo);
+  document.getElementById("edit-product-category").value = producto.categoria_id || "";
 
   const cuerpoTabla = document.getElementById("variants-table-body");
   while (cuerpoTabla.firstChild) {
@@ -1064,6 +1073,20 @@ function manejarCambioEnPromo(evento) {
 
 function manejarCambioEsNuevo(evento) {
   return manejarCambioCartel(evento, "es_nuevo", "Producto marcado como nuevo ingreso.", "Se sacó de nuevo ingreso.");
+}
+
+async function manejarCambioCategoriaProducto(evento) {
+  if (!productoSeleccionadoId) return;
+
+  const categoriaId = evento.target.value || null;
+  try {
+    await actualizarProducto(productoSeleccionadoId, { categoria_id: categoriaId });
+    productosAdmin = await obtenerCatalogoCompleto();
+    renderListaProductos(document.getElementById("search-product").value);
+    mostrarToast("Categoría del producto actualizada.", "success");
+  } catch (error) {
+    mostrarToast("No se pudo actualizar la categoría del producto.", "error");
+  }
 }
 
 function crearFilaTablaVariante(variante) {
@@ -1328,12 +1351,13 @@ async function manejarSubmitCrearProducto(evento) {
   evento.preventDefault();
 
   const nombre = document.getElementById("new-product-name").value.trim();
+  const categoriaId = document.getElementById("new-product-category").value || null;
   const archivoFoto = document.getElementById("new-product-photo").files[0];
   const textoVariantes = document.getElementById("new-product-variants-text").value;
   const variantes = parsearListaVariantes(textoVariantes);
 
   try {
-    const producto = await crearProducto(nombre, null);
+    const producto = await crearProducto(nombre, null, categoriaId);
 
     if (archivoFoto) {
       const url = await subirFotoProducto(producto.id, archivoFoto);
@@ -1645,6 +1669,289 @@ function existeVendedorDuplicado(nombre, provincia, idExcluir) {
 
 function esErrorVendedorDuplicado(error) {
   return Boolean(error && (error.code === "23505" || (error.message && /duplicate|unique/i.test(error.message))));
+}
+
+// ---------------------------------------------------------------------
+// Gestión de categorías (lista plana, ordenable con los botones ↑/↓)
+// ---------------------------------------------------------------------
+
+function renderCategoriasLista() {
+  const contenedor = document.getElementById("categorias-lista");
+  while (contenedor.firstChild) {
+    contenedor.removeChild(contenedor.firstChild);
+  }
+
+  if (categoriasAdmin.length === 0) {
+    const vacio = document.createElement("p");
+    vacio.style.color = "var(--color-text-light)";
+    vacio.style.fontSize = "0.9rem";
+    vacio.textContent = "Todavía no hay categorías cargadas.";
+    contenedor.appendChild(vacio);
+    return;
+  }
+
+  const ordenadas = categoriasAdmin.slice().sort(function (a, b) {
+    return a.orden - b.orden;
+  });
+
+  ordenadas.forEach(function (categoria, indice) {
+    contenedor.appendChild(crearFilaCategoria(categoria, indice, ordenadas.length));
+  });
+}
+
+// Reutiliza las clases "vendedor-row-*" (ya definidas en admin.html):
+// son puramente de layout (fila con info a la izquierda y acciones a la
+// derecha), no algo específico de vendedores.
+function crearFilaCategoria(categoria, indice, total) {
+  const fila = document.createElement("div");
+  fila.className = "vendedor-row";
+  renderCategoriaRowVista(fila, categoria, indice, total);
+  return fila;
+}
+
+function renderCategoriaRowVista(fila, categoria, indice, total) {
+  while (fila.firstChild) {
+    fila.removeChild(fila.firstChild);
+  }
+
+  const info = document.createElement("div");
+  info.className = "vendedor-row-info";
+
+  const nombre = document.createElement("span");
+  nombre.className = "vendedor-row-name";
+  nombre.textContent = categoria.nombre;
+  info.appendChild(nombre);
+
+  const estado = document.createElement("span");
+  estado.className = "vendedor-row-zeus";
+  estado.textContent = categoria.activo ? "Activa" : "Inactiva";
+  info.appendChild(estado);
+
+  fila.appendChild(info);
+
+  const acciones = document.createElement("div");
+  acciones.className = "vendedor-row-actions";
+
+  const btnSubir = document.createElement("button");
+  btnSubir.type = "button";
+  btnSubir.className = "btn-secondary";
+  btnSubir.style.width = "auto";
+  btnSubir.style.padding = "0.3rem 0.55rem";
+  btnSubir.style.fontSize = "0.78rem";
+  btnSubir.textContent = "↑";
+  btnSubir.disabled = indice === 0;
+  btnSubir.addEventListener("click", function () {
+    moverCategoria(categoria, -1);
+  });
+  acciones.appendChild(btnSubir);
+
+  const btnBajar = document.createElement("button");
+  btnBajar.type = "button";
+  btnBajar.className = "btn-secondary";
+  btnBajar.style.width = "auto";
+  btnBajar.style.padding = "0.3rem 0.55rem";
+  btnBajar.style.fontSize = "0.78rem";
+  btnBajar.textContent = "↓";
+  btnBajar.disabled = indice === total - 1;
+  btnBajar.addEventListener("click", function () {
+    moverCategoria(categoria, 1);
+  });
+  acciones.appendChild(btnBajar);
+
+  const btnToggleActivo = document.createElement("button");
+  btnToggleActivo.type = "button";
+  btnToggleActivo.className = "btn-secondary";
+  btnToggleActivo.style.width = "auto";
+  btnToggleActivo.style.padding = "0.3rem 0.65rem";
+  btnToggleActivo.style.fontSize = "0.78rem";
+  btnToggleActivo.textContent = categoria.activo ? "Desactivar" : "Activar";
+  btnToggleActivo.addEventListener("click", async function () {
+    try {
+      await actualizarCategoria(categoria.id, { activo: !categoria.activo });
+      categoriasAdmin = await obtenerCategoriasCompleto();
+      renderCategoriasLista();
+      renderSelectsCategorias();
+      mostrarToast(categoria.activo ? "Categoría desactivada." : "Categoría activada.", "success");
+    } catch (error) {
+      mostrarToast("No se pudo actualizar la categoría.", "error");
+    }
+  });
+  acciones.appendChild(btnToggleActivo);
+
+  const btnEditar = document.createElement("button");
+  btnEditar.type = "button";
+  btnEditar.className = "btn-secondary";
+  btnEditar.style.width = "auto";
+  btnEditar.style.padding = "0.3rem 0.65rem";
+  btnEditar.style.fontSize = "0.78rem";
+  btnEditar.textContent = "✏️ Editar";
+  btnEditar.addEventListener("click", function () {
+    renderCategoriaRowEdicion(fila, categoria, indice, total);
+  });
+  acciones.appendChild(btnEditar);
+
+  const btnEliminar = document.createElement("button");
+  btnEliminar.type = "button";
+  btnEliminar.className = "btn-delete-var";
+  btnEliminar.textContent = "🗑️";
+  btnEliminar.addEventListener("click", function () {
+    // El FK productos.categoria_id es "on delete set null": borrar acá
+    // sin este chequeo dejaría productos huérfanos (fuera de todos los
+    // chips salvo "Todos") sin ningún aviso.
+    const productosEnCategoria = productosAdmin.filter(function (producto) {
+      return producto.categoria_id === categoria.id;
+    }).length;
+    if (productosEnCategoria > 0) {
+      mostrarToast("No se puede eliminar: hay " + productosEnCategoria + " producto(s) en esta categoría.", "error");
+      return;
+    }
+    confirmarAccionDoble(btnEliminar, "¿Confirmar?", async function () {
+      try {
+        await eliminarCategoria(categoria.id);
+        categoriasAdmin = await obtenerCategoriasCompleto();
+        renderCategoriasLista();
+        renderSelectsCategorias();
+        mostrarToast("Categoría eliminada.", "success");
+      } catch (error) {
+        mostrarToast("No se pudo eliminar la categoría.", "error");
+      }
+    });
+  });
+  acciones.appendChild(btnEliminar);
+
+  fila.appendChild(acciones);
+}
+
+function renderCategoriaRowEdicion(fila, categoria, indice, total) {
+  while (fila.firstChild) {
+    fila.removeChild(fila.firstChild);
+  }
+
+  const campos = document.createElement("div");
+  campos.className = "vendedor-row-fields";
+
+  const inputNombre = document.createElement("input");
+  inputNombre.type = "text";
+  inputNombre.className = "form-input";
+  inputNombre.value = categoria.nombre;
+  campos.appendChild(inputNombre);
+
+  fila.appendChild(campos);
+
+  const acciones = document.createElement("div");
+  acciones.className = "vendedor-row-actions";
+
+  const btnGuardar = document.createElement("button");
+  btnGuardar.type = "button";
+  btnGuardar.className = "btn-primary";
+  btnGuardar.style.width = "auto";
+  btnGuardar.style.padding = "0.3rem 0.65rem";
+  btnGuardar.style.fontSize = "0.78rem";
+  btnGuardar.textContent = "💾 Guardar";
+  btnGuardar.addEventListener("click", async function () {
+    const nombreNuevo = inputNombre.value.trim();
+    if (!nombreNuevo) return;
+
+    try {
+      await actualizarCategoria(categoria.id, { nombre: nombreNuevo });
+      categoriasAdmin = await obtenerCategoriasCompleto();
+      renderCategoriasLista();
+      renderSelectsCategorias();
+      mostrarToast("Categoría actualizada.", "success");
+    } catch (error) {
+      mostrarToast("No se pudo actualizar la categoría (¿nombre repetido?).", "error");
+    }
+  });
+  acciones.appendChild(btnGuardar);
+
+  const btnCancelar = document.createElement("button");
+  btnCancelar.type = "button";
+  btnCancelar.className = "btn-secondary";
+  btnCancelar.style.width = "auto";
+  btnCancelar.style.padding = "0.3rem 0.65rem";
+  btnCancelar.style.fontSize = "0.78rem";
+  btnCancelar.textContent = "Cancelar";
+  btnCancelar.addEventListener("click", function () {
+    renderCategoriaRowVista(fila, categoria, indice, total);
+  });
+  acciones.appendChild(btnCancelar);
+
+  fila.appendChild(acciones);
+}
+
+// Intercambia el campo "orden" de una categoría con su vecina (arriba o
+// abajo en la lista ya ordenada) en vez de drag-and-drop: alcanza para
+// la cantidad de categorías que va a tener este catálogo.
+async function moverCategoria(categoria, delta) {
+  const ordenadas = categoriasAdmin.slice().sort(function (a, b) {
+    return a.orden - b.orden;
+  });
+  const indice = ordenadas.findIndex(function (c) {
+    return c.id === categoria.id;
+  });
+  const indiceVecino = indice + delta;
+  if (indiceVecino < 0 || indiceVecino >= ordenadas.length) return;
+
+  const vecino = ordenadas[indiceVecino];
+  try {
+    await Promise.all([
+      actualizarCategoria(categoria.id, { orden: vecino.orden }),
+      actualizarCategoria(vecino.id, { orden: categoria.orden }),
+    ]);
+    categoriasAdmin = await obtenerCategoriasCompleto();
+    renderCategoriasLista();
+  } catch (error) {
+    mostrarToast("No se pudo reordenar la categoría.", "error");
+  }
+}
+
+async function manejarSubmitAgregarCategoria(evento) {
+  evento.preventDefault();
+
+  const nombre = document.getElementById("categoria-nombre").value.trim();
+  if (!nombre) return;
+
+  try {
+    await crearCategoria(nombre);
+    document.getElementById("form-add-categoria").reset();
+    categoriasAdmin = await obtenerCategoriasCompleto();
+    renderCategoriasLista();
+    renderSelectsCategorias();
+    mostrarToast("Categoría agregada.", "success");
+  } catch (error) {
+    mostrarToast(
+      error && error.code === "23505" ? "Ya existe una categoría con ese nombre." : "No se pudo agregar la categoría.",
+      "error"
+    );
+  }
+}
+
+// Llena los selects de categoría del alta y edición de producto. El de
+// alta solo ofrece categorías activas (no tendría sentido asignar un
+// producto nuevo a una ya desactivada); el de edición incluye también
+// las inactivas, para que se siga viendo/pueda corregirse la categoría
+// de un producto ya asignado a una que se desactivó después.
+function renderSelectsCategorias() {
+  poblarSelectCategoria(
+    document.getElementById("new-product-category"),
+    categoriasAdmin.filter(function (c) {
+      return c.activo;
+    })
+  );
+  poblarSelectCategoria(document.getElementById("edit-product-category"), categoriasAdmin);
+}
+
+function poblarSelectCategoria(select, categorias) {
+  if (!select) return;
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+  categorias.forEach(function (categoria) {
+    const opcion = document.createElement("option");
+    opcion.value = categoria.id;
+    opcion.textContent = categoria.nombre;
+    select.appendChild(opcion);
+  });
 }
 
 // ---------------------------------------------------------------------

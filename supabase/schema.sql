@@ -64,6 +64,40 @@ create table if not exists public.variantes (
 
 create index if not exists variantes_producto_id_idx on public.variantes(producto_id);
 
+-- Categorías de producto (plano, sin jerarquías): cada producto
+-- pertenece a UNA sola categoría. Antes de que existiera esta tabla,
+-- todo el catálogo era fundas de celular; se crea "Fundas" como
+-- categoría por defecto para no dejar productos existentes sin
+-- categorizar (ver seed más abajo).
+create table if not exists public.categorias (
+  id          uuid primary key default gen_random_uuid(),
+  nombre      text not null,
+  orden       integer not null default 0,
+  activo      boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+drop index if exists public.categorias_nombre_unq;
+create unique index categorias_nombre_unq on public.categorias (lower(trim(nombre)));
+
+-- categoria_id nullable al principio: permite agregar la columna sin
+-- romper el catálogo en producción mientras se corre el seed de abajo.
+-- Se puede promover a "not null" más adelante una vez confirmado que
+-- todos los productos quedaron asignados.
+alter table public.productos add column if not exists categoria_id uuid references public.categorias(id) on delete set null;
+create index if not exists productos_categoria_id_idx on public.productos(categoria_id);
+
+-- Seed idempotente: crea "Fundas" si no existe y asigna esa categoría
+-- a todo producto que todavía no tenga una.
+insert into public.categorias (nombre, orden)
+select 'Fundas', 0
+where not exists (select 1 from public.categorias where lower(trim(nombre)) = 'fundas');
+
+update public.productos
+set categoria_id = (select id from public.categorias where lower(trim(nombre)) = 'fundas' limit 1)
+where categoria_id is null;
+
 -- Fila única de configuración general de la app.
 create table if not exists public.app_config (
   id                 smallint primary key default 1 check (id = 1),
@@ -202,6 +236,10 @@ create trigger trg_productos_updated before update on public.productos
 
 drop trigger if exists trg_variantes_updated on public.variantes;
 create trigger trg_variantes_updated before update on public.variantes
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_categorias_updated on public.categorias;
+create trigger trg_categorias_updated before update on public.categorias
   for each row execute function public.set_updated_at();
 
 drop trigger if exists trg_config_updated on public.app_config;
@@ -524,6 +562,7 @@ drop function if exists public.asignar_vendedor_automatico();
 
 alter table public.productos enable row level security;
 alter table public.variantes enable row level security;
+alter table public.categorias enable row level security;
 alter table public.app_config enable row level security;
 alter table public.pedidos enable row level security;
 alter table public.vendedores enable row level security;
@@ -544,6 +583,13 @@ create policy "variantes_lectura_publica" on public.variantes
   for select using (true);
 drop policy if exists "variantes_escritura_admin" on public.variantes;
 create policy "variantes_escritura_admin" on public.variantes
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+drop policy if exists "categorias_lectura_publica" on public.categorias;
+create policy "categorias_lectura_publica" on public.categorias
+  for select using (true);
+drop policy if exists "categorias_escritura_admin" on public.categorias;
+create policy "categorias_escritura_admin" on public.categorias
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 drop policy if exists "config_lectura_publica" on public.app_config;
