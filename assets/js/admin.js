@@ -444,31 +444,43 @@ function renderTablaPedidos(pedidos, idTbody, idMensajeVacio) {
 function crearFilaPedido(pedido) {
   const fila = document.createElement("tr");
 
+  // "data-label" identifica cada celda en el layout de tarjeta apilada
+  // que usa el CSS en pantallas angostas (ver #tab-pedidos .table-variants
+  // en styles.css): sin esto, una vendedora en el celular tendría que
+  // hacer scroll horizontal para llegar a la columna de Acciones.
   const celdaFecha = document.createElement("td");
+  celdaFecha.dataset.label = "Fecha";
   celdaFecha.textContent = new Date(pedido.created_at).toLocaleString("es-AR");
   fila.appendChild(celdaFecha);
 
   const celdaCliente = document.createElement("td");
+  celdaCliente.dataset.label = "Cliente";
   fila.appendChild(celdaCliente);
 
   const celdaTelefono = document.createElement("td");
+  celdaTelefono.dataset.label = "Teléfono";
   fila.appendChild(celdaTelefono);
 
   const celdaArticulos = document.createElement("td");
+  celdaArticulos.dataset.label = "Artículos";
   celdaArticulos.textContent = String(pedido.cantidad_articulos);
   fila.appendChild(celdaArticulos);
 
   const celdaTotal = document.createElement("td");
+  celdaTotal.dataset.label = "Total";
   celdaTotal.textContent = formatearMoneda(pedido.total);
   fila.appendChild(celdaTotal);
 
   const celdaEstado = document.createElement("td");
+  celdaEstado.dataset.label = "Estado";
   fila.appendChild(celdaEstado);
 
   const celdaVendedor = document.createElement("td");
+  celdaVendedor.dataset.label = "Vendedor/a";
   fila.appendChild(celdaVendedor);
 
   const celdaAcciones = document.createElement("td");
+  celdaAcciones.dataset.label = "Acciones";
   celdaAcciones.style.display = "flex";
   celdaAcciones.style.flexWrap = "wrap";
   celdaAcciones.style.gap = "0.5rem";
@@ -518,10 +530,8 @@ function renderFilaPedidoVendedora(pedido, celdaCliente, celdaTelefono, celdaEst
   if (pedido.vendedor_id === null && pedido.estado !== "completado") {
     const btnTomar = document.createElement("button");
     btnTomar.type = "button";
-    btnTomar.className = "btn-primary";
+    btnTomar.className = "btn-primary btn-accion-vendedora";
     btnTomar.style.width = "auto";
-    btnTomar.style.padding = "0.35rem 0.75rem";
-    btnTomar.style.fontSize = "0.8rem";
     btnTomar.textContent = "🤝 Agarrar pedido";
     btnTomar.addEventListener("click", function () {
       manejarTomarPedido(pedido.id, btnTomar);
@@ -530,10 +540,8 @@ function renderFilaPedidoVendedora(pedido, celdaCliente, celdaTelefono, celdaEst
   } else if (pedido.vendedor_id === miVendedorId && pedido.estado === "asignado") {
     const btnPreparar = document.createElement("button");
     btnPreparar.type = "button";
-    btnPreparar.className = "btn-secondary";
+    btnPreparar.className = "btn-secondary btn-accion-vendedora";
     btnPreparar.style.width = "auto";
-    btnPreparar.style.padding = "0.35rem 0.75rem";
-    btnPreparar.style.fontSize = "0.8rem";
     btnPreparar.textContent = "📦 Marcar preparado";
     btnPreparar.addEventListener("click", function () {
       manejarPrepararPedido(pedido.id, btnPreparar);
@@ -542,10 +550,8 @@ function renderFilaPedidoVendedora(pedido, celdaCliente, celdaTelefono, celdaEst
   } else if (pedido.vendedor_id === miVendedorId && pedido.estado === "preparado") {
     const btnCompletar = document.createElement("button");
     btnCompletar.type = "button";
-    btnCompletar.className = "btn-secondary";
+    btnCompletar.className = "btn-secondary btn-accion-vendedora";
     btnCompletar.style.width = "auto";
-    btnCompletar.style.padding = "0.35rem 0.75rem";
-    btnCompletar.style.fontSize = "0.8rem";
     btnCompletar.textContent = "💰 Marcar pagado";
     btnCompletar.addEventListener("click", function () {
       manejarCompletarPedido(pedido.id, btnCompletar);

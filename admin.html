@@ -45,8 +45,21 @@
       max-width: 1200px;
       margin: 0 auto;
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
+      gap: 0.6rem;
+    }
+    /* Sin esto, en una pantalla angosta los botones de la derecha no
+       entran y el flex exprime el título/logo hasta partir el texto
+       letra por letra en vez de bajar de línea. */
+    @media (max-width: 640px) {
+      .admin-header-content h1 {
+        font-size: 1.05rem !important;
+      }
+      .admin-header-content small {
+        display: none;
+      }
     }
     .admin-card {
       background: var(--color-surface);
@@ -207,6 +220,53 @@
       position: sticky;
       top: 0;
       z-index: 1;
+    }
+
+    /* La tabla de Pedidos es la que más usan las vendedoras desde el
+       celular (Agarrar/Preparar/Pagar): con 8 columnas, una tabla común
+       obliga a hacer scroll horizontal para llegar a "Acciones", que
+       queda última. En pantallas angostas se convierte cada fila en una
+       tarjeta apilada (patrón responsive estándar para tablas), usando
+       el atributo data-label que pone admin.js en cada <td> como
+       etiqueta. La tabla de Variantes/Vendedores no se toca: comparten
+       la clase .table-variants pero viven fuera de #tab-pedidos. */
+    @media (max-width: 640px) {
+      #tab-pedidos .table-variants thead {
+        display: none;
+      }
+      #tab-pedidos .table-variants,
+      #tab-pedidos .table-variants tbody,
+      #tab-pedidos .table-variants tr {
+        display: block;
+        width: 100%;
+      }
+      #tab-pedidos .table-variants tr {
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        margin-bottom: 0.75rem;
+        padding: 0.6rem 0.75rem;
+      }
+      #tab-pedidos .table-variants td {
+        display: block;
+        width: 100%;
+        border: none;
+        padding: 0.3rem 0;
+      }
+      #tab-pedidos .table-variants td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-weight: 700;
+        color: var(--color-text-light);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      /* La celda de Acciones fuerza su propio display:flex en JS (para
+         que los botones se acomoden en fila con wrap), así que gana por
+         estilo inline sobre el "display: block" de arriba. */
+      #tab-pedidos .table-variants td[data-label="Acciones"] {
+        margin-top: 0.4rem;
+      }
     }
 
     /* ---------- Pestañas del panel admin ---------- */
@@ -497,7 +557,7 @@
             <small style="color: var(--color-text-light);">Actualizador de Precios, Stock, Modelos y Fotos</small>
           </div>
         </div>
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
           <button type="button" id="btn-open-config" class="btn-secondary" style="margin: 0; width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;" aria-label="Configuración general" title="Configuración general">
             ⚙️
           </button>

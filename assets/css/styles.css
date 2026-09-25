@@ -269,6 +269,17 @@ a {
   background: #f3f4f6;
 }
 
+/* Botones de "Agarrar pedido"/"Marcar preparado"/"Marcar pagado" en
+   Gestión Pedidos: a diferencia de los botones chicos de las tablas del
+   admin (pensados para mouse), estos los toca una vendedora con el
+   celular en la mano, así que necesitan un área de toque cómoda
+   (mínimo recomendado ~44px). */
+.btn-accion-vendedora {
+  min-height: 44px;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+}
+
 .btn-close {
   background: none;
   border: none;
