@@ -663,7 +663,10 @@ function renderFilaDestacados(idWrap, idTrack, productos) {
     track.removeChild(track.firstChild);
   }
 
-  if (productos.length === 0 || terminoBusqueda) {
+  // También se oculta al filtrar por una categoría puntual (no
+  // "Todos"): mezclar promos de todas las categorías ahí no aporta y le
+  // resta lugar en pantalla a la búsqueda rápida del cliente.
+  if (productos.length === 0 || terminoBusqueda || categoriaActivaId !== null) {
     wrap.style.display = "none";
     return;
   }
