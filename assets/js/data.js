@@ -243,7 +243,7 @@ async function obtenerPedidos() {
   const { data, error } = await supabaseClient
     .from("pedidos")
     .select(
-      "id, cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at, estado, vendedor_id, preparado_por_id, preparado_por_nombre, armado_finalizado, armado_finalizado_por"
+      "id, cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at, estado, vendedor_id, tomado_en, preparado_en, preparado_por_id, preparado_por_nombre, armado_finalizado, armado_finalizado_por"
     )
     .order("created_at", { ascending: false });
 
@@ -280,6 +280,14 @@ async function tomarPedido(id) {
     throw error;
   }
   return data && data.length > 0 ? data[0] : { ok: false, motivo: "error", vendedor_nombre: null };
+}
+
+async function prepararPedidoPropio(id) {
+  const { data, error } = await supabaseClient.rpc("preparar_pedido_propio", { p_id: id });
+  if (error) {
+    throw error;
+  }
+  return data;
 }
 
 async function completarPedidoPropio(id) {

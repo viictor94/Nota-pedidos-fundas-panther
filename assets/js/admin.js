@@ -175,6 +175,14 @@ async function mostrarPanelAdmin() {
   document.getElementById("admin-main-content").style.display = "block";
   await cargarDatosAdmin();
   await aplicarPermisosPorRol();
+
+  // La alerta "⚠️ Demorado" depende de la hora actual, no de un dato que
+  // cambie en la base: sin este refresco periódico, quedaría desactualizada
+  // hasta la próxima acción manual (cerrar sesión no hace falta, se
+  // recalcula solo mientras la pestaña sigue abierta).
+  setInterval(function () {
+    renderTablasPedidos(pedidosAdmin);
+  }, 60000);
 }
 
 async function manejarSubmitCambiarPin(evento) {
@@ -514,19 +522,31 @@ function renderFilaPedidoVendedora(pedido, celdaCliente, celdaTelefono, celdaEst
     btnTomar.style.width = "auto";
     btnTomar.style.padding = "0.35rem 0.75rem";
     btnTomar.style.fontSize = "0.8rem";
-    btnTomar.textContent = "🤝 Tomar pedido";
+    btnTomar.textContent = "🤝 Agarrar pedido";
     btnTomar.addEventListener("click", function () {
       manejarTomarPedido(pedido.id, btnTomar);
     });
     celdaAcciones.appendChild(btnTomar);
-  } else if (pedido.vendedor_id === miVendedorId && pedido.estado !== "completado") {
+  } else if (pedido.vendedor_id === miVendedorId && pedido.estado === "asignado") {
+    const btnPreparar = document.createElement("button");
+    btnPreparar.type = "button";
+    btnPreparar.className = "btn-secondary";
+    btnPreparar.style.width = "auto";
+    btnPreparar.style.padding = "0.35rem 0.75rem";
+    btnPreparar.style.fontSize = "0.8rem";
+    btnPreparar.textContent = "📦 Marcar preparado";
+    btnPreparar.addEventListener("click", function () {
+      manejarPrepararPedido(pedido.id, btnPreparar);
+    });
+    celdaAcciones.appendChild(btnPreparar);
+  } else if (pedido.vendedor_id === miVendedorId && pedido.estado === "preparado") {
     const btnCompletar = document.createElement("button");
     btnCompletar.type = "button";
     btnCompletar.className = "btn-secondary";
     btnCompletar.style.width = "auto";
     btnCompletar.style.padding = "0.35rem 0.75rem";
     btnCompletar.style.fontSize = "0.8rem";
-    btnCompletar.textContent = "💰 Marcar completado";
+    btnCompletar.textContent = "💰 Marcar pagado";
     btnCompletar.addEventListener("click", function () {
       manejarCompletarPedido(pedido.id, btnCompletar);
     });
@@ -559,19 +579,66 @@ async function manejarTomarPedido(pedidoId, boton) {
   }
 }
 
-async function manejarCompletarPedido(pedidoId, boton) {
+async function manejarPrepararPedido(pedidoId, boton) {
   boton.disabled = true;
   try {
-    const ok = await completarPedidoPropio(pedidoId);
-    mostrarToast(ok ? "Pedido marcado como completado." : "No se pudo completar el pedido.", ok ? "success" : "error");
+    const ok = await prepararPedidoPropio(pedidoId);
+    mostrarToast(ok ? "Pedido marcado como preparado." : "No se pudo marcar como preparado.", ok ? "success" : "error");
     await refrescarPedidos();
   } catch (error) {
-    mostrarToast("No se pudo completar el pedido.", "error");
+    mostrarToast("No se pudo marcar como preparado.", "error");
     boton.disabled = false;
   }
 }
 
-const ETIQUETAS_ESTADO_PEDIDO = { nuevo: "🆕 Nuevo", asignado: "✅ Asignado", completado: "💰 Completado" };
+async function manejarCompletarPedido(pedidoId, boton) {
+  boton.disabled = true;
+  try {
+    const ok = await completarPedidoPropio(pedidoId);
+    mostrarToast(ok ? "Pedido marcado como pagado." : "No se pudo marcar como pagado.", ok ? "success" : "error");
+    await refrescarPedidos();
+  } catch (error) {
+    mostrarToast("No se pudo marcar como pagado.", "error");
+    boton.disabled = false;
+  }
+}
+
+const ETIQUETAS_ESTADO_PEDIDO = { nuevo: "🆕 Nuevo", asignado: "🤝 Tomado", preparado: "📦 Preparado", completado: "💰 Pagado" };
+
+// Horas transcurridas entre dos fechas contando solo tramos de día hábil
+// (lunes a viernes): el tiempo que cae sábado/domingo no suma. No se
+// recorta a un horario laboral dentro del día, solo se saltan los dos
+// días de fin de semana completos.
+function horasHabilesEntre(desde, hasta) {
+  let total = 0;
+  let cursor = new Date(desde);
+  while (cursor < hasta) {
+    const diaSemana = cursor.getDay(); // 0 = domingo, 6 = sábado
+    const finDia = new Date(cursor);
+    finDia.setHours(24, 0, 0, 0);
+    const finSegmento = finDia < hasta ? finDia : hasta;
+    if (diaSemana !== 0 && diaSemana !== 6) {
+      total += finSegmento - cursor;
+    }
+    cursor = finSegmento;
+  }
+  return total / (1000 * 60 * 60);
+}
+
+// Alerta de SLA pedida por el negocio: más de 8 horas hábiles sin que
+// nadie agarre el pedido, o más de 24 horas hábiles desde que alguien lo
+// agarró sin marcarlo preparado. Una vez preparado o completado, ya no
+// aplica (el reloj de esas dos etapas se detiene ahí).
+function pedidoEstaDemorado(pedido) {
+  const ahora = new Date();
+  if (!pedido.vendedor_id) {
+    return horasHabilesEntre(new Date(pedido.created_at), ahora) > 8;
+  }
+  if (pedido.estado === "asignado" && pedido.tomado_en) {
+    return horasHabilesEntre(new Date(pedido.tomado_en), ahora) > 24;
+  }
+  return false;
+}
 
 // Badges de estado + armado, compartidos entre la vista admin y la
 // vista simplificada de vendedora (ver renderFilaPedidoVendedora).
@@ -583,6 +650,14 @@ function pintarEstadoPedido(pedido, celdaEstado) {
   badgeEstado.className = "pedido-badge " + pedido.estado;
   badgeEstado.textContent = ETIQUETAS_ESTADO_PEDIDO[pedido.estado] || pedido.estado;
   celdaEstado.appendChild(badgeEstado);
+
+  if (pedidoEstaDemorado(pedido)) {
+    celdaEstado.appendChild(document.createElement("br"));
+    const badgeDemorado = document.createElement("span");
+    badgeDemorado.className = "pedido-badge pedido-badge-demorado";
+    badgeDemorado.textContent = "⚠️ Demorado";
+    celdaEstado.appendChild(badgeDemorado);
+  }
 
   // Estado de armado (pedido.html): si alguien lo está preparando
   // ahora mismo, o si ya lo terminó de armar, para verlo sin tener que
@@ -673,13 +748,25 @@ function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado,
   celdaAcciones.appendChild(enlaceVer);
 
   if (pedido.estado === "asignado") {
+    const btnPreparar = document.createElement("button");
+    btnPreparar.type = "button";
+    btnPreparar.className = "btn-secondary";
+    btnPreparar.style.width = "auto";
+    btnPreparar.style.padding = "0.35rem 0.75rem";
+    btnPreparar.style.fontSize = "0.8rem";
+    btnPreparar.textContent = "📦 Preparar";
+    btnPreparar.addEventListener("click", function () {
+      cambiarEstadoPedido(pedido.id, "preparado");
+    });
+    celdaAcciones.appendChild(btnPreparar);
+  } else if (pedido.estado === "preparado") {
     const btnCompletar = document.createElement("button");
     btnCompletar.type = "button";
     btnCompletar.className = "btn-secondary";
     btnCompletar.style.width = "auto";
     btnCompletar.style.padding = "0.35rem 0.75rem";
     btnCompletar.style.fontSize = "0.8rem";
-    btnCompletar.textContent = "💰 Completar";
+    btnCompletar.textContent = "💰 Marcar pagado";
     btnCompletar.addEventListener("click", function () {
       cambiarEstadoPedido(pedido.id, "completado");
     });
@@ -693,7 +780,7 @@ function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado,
     btnReabrir.style.fontSize = "0.8rem";
     btnReabrir.textContent = "↩️ Reabrir";
     btnReabrir.addEventListener("click", function () {
-      cambiarEstadoPedido(pedido.id, "asignado");
+      cambiarEstadoPedido(pedido.id, "preparado");
     });
     celdaAcciones.appendChild(btnReabrir);
   }

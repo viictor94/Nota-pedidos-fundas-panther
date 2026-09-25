@@ -201,6 +201,15 @@ alter table public.pedidos add column if not exists preparado_por_nombre text;
 alter table public.pedidos add column if not exists armado_finalizado boolean not null default false;
 alter table public.pedidos add column if not exists armado_finalizado_por text;
 
+-- Marcas de tiempo para la alerta de "pedido demorado" del panel (ver
+-- pedidoEstaDemorado en admin.js): cuándo se le asignó vendedor/a (sea
+-- porque ella lo tomó, o porque el admin lo asignó a mano) y cuándo
+-- pasó a "preparado". Se completan solas vía trigger (ver más abajo),
+-- nunca a mano, para que no dependa de que cada lugar del código que
+-- toca "pedidos" se acuerde de setearlas.
+alter table public.pedidos add column if not exists tomado_en timestamptz;
+alter table public.pedidos add column if not exists preparado_en timestamptz;
+
 -- Congela "items_original" en el momento de crear el pedido (el
 -- cliente inserta directo desde el checkout): así después se puede
 -- comparar contra "items" para saber si la vendedora modificó algo.
@@ -218,12 +227,37 @@ drop trigger if exists trg_pedidos_items_original on public.pedidos;
 create trigger trg_pedidos_items_original before insert on public.pedidos
   for each row execute function public.congelar_items_original();
 
+-- Completa tomado_en/preparado_en automáticamente en el momento exacto
+-- de cada transición, sin importar si la update la disparó el admin
+-- (actualizarPedido/cambiarEstadoPedido) o una vendedora (tomar_pedido/
+-- preparar_pedido_propio): un solo lugar, no hay forma de que alguno de
+-- los dos caminos se olvide de marcarla.
+create or replace function public.marcar_timestamps_pedido()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.vendedor_id is not null and old.vendedor_id is null then
+    new.tomado_en = now();
+  end if;
+  if new.estado = 'preparado' and old.estado is distinct from 'preparado' then
+    new.preparado_en = now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_pedidos_timestamps on public.pedidos;
+create trigger trg_pedidos_timestamps before update on public.pedidos
+  for each row execute function public.marcar_timestamps_pedido();
+
 -- El check de "estado" se agregó sin nombre explícito en una versión
 -- anterior de este archivo (quedó autonombrado "pedidos_estado_check");
--- se reemplaza para poder sumarle "completado" sin duplicar la regla.
+-- se reemplaza para poder sumarle "preparado" (paso intermedio entre
+-- tomado y pagado) sin duplicar la regla.
 alter table public.pedidos drop constraint if exists pedidos_estado_check;
 alter table public.pedidos add constraint pedidos_estado_check
-  check (estado in ('nuevo', 'asignado', 'completado'));
+  check (estado in ('nuevo', 'asignado', 'preparado', 'completado'));
 
 -- ---------------------------------------------------------------------
 -- updated_at automático
@@ -712,9 +746,43 @@ $$;
 revoke all on function public.tomar_pedido(uuid) from public;
 grant execute on function public.tomar_pedido(uuid) to authenticated;
 
--- Cierra (estado "completado") un pedido que ya es suyo. No permite
--- tocar pedidos de otra vendedora ni sin asignar (para eso está
--- tomar_pedido primero).
+-- Marca como "preparado" un pedido que ya es suyo y todavía está
+-- "asignado" (tomado). Es el paso intermedio obligatorio antes de poder
+-- cerrarlo como pagado (ver completar_pedido_propio más abajo).
+create or replace function public.preparar_pedido_propio(p_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_vendedor_id  uuid;
+  v_actualizadas integer;
+begin
+  select vendedor_id into v_vendedor_id
+  from public.perfiles_admin
+  where id = auth.uid() and rol = 'vendedora' and activo;
+
+  if v_vendedor_id is null then
+    return false;
+  end if;
+
+  update public.pedidos
+  set estado = 'preparado'
+  where id = p_id and vendedor_id = v_vendedor_id and estado = 'asignado';
+
+  get diagnostics v_actualizadas = row_count;
+  return v_actualizadas > 0;
+end;
+$$;
+
+revoke all on function public.preparar_pedido_propio(uuid) from public;
+grant execute on function public.preparar_pedido_propio(uuid) to authenticated;
+
+-- Cierra (estado "completado"/pagado) un pedido que ya es suyo y que ya
+-- pasó por "preparado". No permite tocar pedidos de otra vendedora ni
+-- saltearse el paso de preparado (para eso están tomar_pedido y
+-- preparar_pedido_propio antes).
 create or replace function public.completar_pedido_propio(p_id uuid)
 returns boolean
 language plpgsql
@@ -735,7 +803,7 @@ begin
 
   update public.pedidos
   set estado = 'completado'
-  where id = p_id and vendedor_id = v_vendedor_id and estado <> 'completado';
+  where id = p_id and vendedor_id = v_vendedor_id and estado = 'preparado';
 
   get diagnostics v_actualizadas = row_count;
   return v_actualizadas > 0;
