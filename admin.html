@@ -775,9 +775,14 @@
       <div id="tab-usuarios" class="admin-tab-panel">
         <section class="admin-card">
           <h2>➕ Asignar Usuario</h2>
-          <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.9rem;">
+          <p style="color: var(--color-text-light); margin-bottom: 0.5rem; font-size: 0.9rem;">
             Primero creá la cuenta desde el Dashboard de Supabase (Authentication → Users → Add user, con su email y contraseña). Copiá el ID (UUID) que le asigna Supabase y completá acá su nombre y rol.
           </p>
+          <ul style="color: var(--color-text-light); margin: 0 0 1rem 1.1rem; font-size: 0.85rem; line-height: 1.5;">
+            <li><strong>Admin:</strong> acceso total al panel.</li>
+            <li><strong>Editor de Catálogo:</strong> Stock y Precios, Categorías y Vendedores. No ve Pedidos ni Usuarios.</li>
+            <li><strong>Vendedora:</strong> solo Gestión Pedidos, de solo lectura.</li>
+          </ul>
           <form id="form-add-usuario" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
             <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
               <label class="form-label" for="usuario-id">ID de usuario (UUID) *</label>
@@ -791,6 +796,7 @@
               <label class="form-label" for="usuario-rol">Rol *</label>
               <select id="usuario-rol" class="form-input">
                 <option value="vendedora">Vendedora</option>
+                <option value="editor">Editor de Catálogo</option>
                 <option value="admin">Admin</option>
               </select>
             </div>

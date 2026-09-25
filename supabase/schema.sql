@@ -576,11 +576,18 @@ drop function if exists public.asignar_vendedor_automatico();
 create table if not exists public.perfiles_admin (
   id          uuid primary key references auth.users(id) on delete cascade,
   nombre      text not null,
-  rol         text not null default 'vendedora' check (rol in ('admin', 'vendedora')),
+  rol         text not null default 'vendedora' check (rol in ('admin', 'vendedora', 'editor')),
   activo      boolean not null default true,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- "check" no admite "if not exists": si la tabla ya existía de antes de
+-- sumar el rol "editor", se reemplaza el constraint para no quedar
+-- pisado por la definición vieja (solo 'admin'/'vendedora').
+alter table public.perfiles_admin drop constraint if exists perfiles_admin_rol_check;
+alter table public.perfiles_admin add constraint perfiles_admin_rol_check
+  check (rol in ('admin', 'vendedora', 'editor'));
 
 drop trigger if exists trg_perfiles_admin_updated on public.perfiles_admin;
 create trigger trg_perfiles_admin_updated before update on public.perfiles_admin
@@ -611,6 +618,20 @@ as $$
   select exists (
     select 1 from public.perfiles_admin
     where id = auth.uid() and activo
+  );
+$$;
+
+-- Rol intermedio "editor": puede cargar/editar catálogo (productos,
+-- variantes, categorías) y la lista de vendedoras, pero no ve ni toca
+-- Gestión Pedidos, Configuración ni Usuarios (eso queda solo para admin).
+create or replace function public.puede_editar_catalogo()
+returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.perfiles_admin
+    where id = auth.uid() and rol in ('admin', 'editor') and activo
   );
 $$;
 
@@ -645,21 +666,21 @@ create policy "productos_lectura_publica" on public.productos
   for select using (true);
 drop policy if exists "productos_escritura_admin" on public.productos;
 create policy "productos_escritura_admin" on public.productos
-  for all using (public.es_admin()) with check (public.es_admin());
+  for all using (public.puede_editar_catalogo()) with check (public.puede_editar_catalogo());
 
 drop policy if exists "variantes_lectura_publica" on public.variantes;
 create policy "variantes_lectura_publica" on public.variantes
   for select using (true);
 drop policy if exists "variantes_escritura_admin" on public.variantes;
 create policy "variantes_escritura_admin" on public.variantes
-  for all using (public.es_admin()) with check (public.es_admin());
+  for all using (public.puede_editar_catalogo()) with check (public.puede_editar_catalogo());
 
 drop policy if exists "categorias_lectura_publica" on public.categorias;
 create policy "categorias_lectura_publica" on public.categorias
   for select using (true);
 drop policy if exists "categorias_escritura_admin" on public.categorias;
 create policy "categorias_escritura_admin" on public.categorias
-  for all using (public.es_admin()) with check (public.es_admin());
+  for all using (public.puede_editar_catalogo()) with check (public.puede_editar_catalogo());
 
 drop policy if exists "config_lectura_publica" on public.app_config;
 create policy "config_lectura_publica" on public.app_config
@@ -686,13 +707,14 @@ create policy "pedidos_borrado_admin" on public.pedidos
 
 -- Vendedores: son datos internos de la empresa (no hace falta que el
 -- cliente los vea), así que a diferencia del catálogo van sin lectura
--- pública, solo admin.
+-- pública. Accesible para admin y editor de catálogo (mismo grupo que
+-- puede tocar productos/categorías).
 drop policy if exists "vendedores_lectura_admin" on public.vendedores;
 create policy "vendedores_lectura_admin" on public.vendedores
-  for select using (public.es_admin());
+  for select using (public.puede_editar_catalogo());
 drop policy if exists "vendedores_escritura_admin" on public.vendedores;
 create policy "vendedores_escritura_admin" on public.vendedores
-  for all using (public.es_admin()) with check (public.es_admin());
+  for all using (public.puede_editar_catalogo()) with check (public.puede_editar_catalogo());
 
 -- Perfiles: cada quien puede ver su propio perfil (para saber su
 -- nombre/rol al entrar al panel); solo el admin puede ver la lista
@@ -718,10 +740,10 @@ create policy "assets_lectura_publica" on storage.objects
   for select using (bucket_id = 'assets-publicos');
 drop policy if exists "assets_escritura_admin" on storage.objects;
 create policy "assets_escritura_admin" on storage.objects
-  for insert with check (bucket_id = 'assets-publicos' and public.es_admin());
+  for insert with check (bucket_id = 'assets-publicos' and public.puede_editar_catalogo());
 drop policy if exists "assets_actualizacion_admin" on storage.objects;
 create policy "assets_actualizacion_admin" on storage.objects
-  for update using (bucket_id = 'assets-publicos' and public.es_admin());
+  for update using (bucket_id = 'assets-publicos' and public.puede_editar_catalogo());
 drop policy if exists "assets_borrado_admin" on storage.objects;
 create policy "assets_borrado_admin" on storage.objects
-  for delete using (bucket_id = 'assets-publicos' and public.es_admin());
+  for delete using (bucket_id = 'assets-publicos' and public.puede_editar_catalogo());

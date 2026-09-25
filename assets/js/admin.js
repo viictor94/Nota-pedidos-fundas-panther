@@ -19,7 +19,7 @@ let vendedoresAdmin = []; // Para el desplegable de "Vendedor/a" en Pedidos y la
 let pedidosAdmin = []; // Cache local para no repedir a Supabase en cada acción de la tabla/reporte.
 let categoriasAdmin = []; // Activas e inactivas, para la pestaña Categorías y los selects de producto.
 let usuariosAdmin = []; // Perfiles (nombre/rol) de quienes tienen acceso al panel.
-let rolActual = null; // "admin" o "vendedora": del usuario logueado, define qué pestañas ve.
+let rolActual = null; // "admin", "editor" o "vendedora": del usuario logueado, define qué pestañas ve.
 let usuarioActualId = null; // Id del usuario logueado (para no dejarlo autoeliminarse/autodegradarse).
 
 // ---------------------------------------------------------------------
@@ -1962,13 +1962,21 @@ function poblarSelectCategoria(select, categorias) {
 }
 
 // ---------------------------------------------------------------------
-// Permisos por rol: una "vendedora" solo ve la pestaña Gestión Pedidos
-// (de solo lectura: las políticas RLS de supabase/schema.sql bloquean
-// cualquier escritura suya sobre pedidos/productos/etc.). El rol "admin"
-// no tiene restricciones de UI.
+// Permisos por rol: cada rol ve únicamente las pestañas que le
+// corresponden (las políticas RLS de supabase/schema.sql bloquean
+// además cualquier escritura fuera de su alcance, aunque alguien
+// manipulara el DOM para revelar una pestaña oculta).
+// - admin: todas las pestañas.
+// - editor: carga catálogo (Stock y Precios, Categorías) y Vendedores,
+//   pero no ve Gestión Pedidos ni Usuarios.
+// - vendedora: solo Gestión Pedidos, de solo lectura.
 // ---------------------------------------------------------------------
 
-const TABS_SOLO_ADMIN = ["tab-stock", "tab-vendedores", "tab-categorias", "tab-usuarios"];
+const TABS_POR_ROL = {
+  admin: ["tab-stock", "tab-pedidos", "tab-vendedores", "tab-categorias", "tab-usuarios"],
+  editor: ["tab-stock", "tab-vendedores", "tab-categorias"],
+  vendedora: ["tab-pedidos"],
+};
 
 async function aplicarPermisosPorRol() {
   try {
@@ -1988,21 +1996,29 @@ async function aplicarPermisosPorRol() {
     return;
   }
 
+  const tabsPermitidas = TABS_POR_ROL[rolActual] || TABS_POR_ROL.vendedora;
+
   document.querySelectorAll(".admin-tab-btn").forEach(function (boton) {
-    if (TABS_SOLO_ADMIN.includes(boton.dataset.tab)) {
+    if (!tabsPermitidas.includes(boton.dataset.tab)) {
       boton.style.display = "none";
     }
   });
 
-  const botonPedidos = document.querySelector('.admin-tab-btn[data-tab="tab-pedidos"]');
-  if (botonPedidos) {
-    botonPedidos.click();
+  const botonInicial = document.querySelector('.admin-tab-btn[data-tab="' + tabsPermitidas[0] + '"]');
+  if (botonInicial) {
+    botonInicial.click();
   }
 }
 
 // ---------------------------------------------------------------------
 // Gestión de usuarios del panel (pestaña "Usuarios", solo rol admin)
 // ---------------------------------------------------------------------
+
+const ETIQUETAS_ROL = { admin: "Admin", editor: "Editor de Catálogo", vendedora: "Vendedora" };
+
+function etiquetaRol(rol) {
+  return ETIQUETAS_ROL[rol] || rol;
+}
 
 async function cargarUsuariosAdmin() {
   try {
@@ -2059,7 +2075,7 @@ function renderUsuarioRowVista(fila, usuario) {
 
   const detalle = document.createElement("span");
   detalle.className = "vendedor-row-zeus";
-  detalle.textContent = (usuario.rol === "admin" ? "Admin" : "Vendedora") + (usuario.activo ? "" : " · Inactivo");
+  detalle.textContent = etiquetaRol(usuario.rol) + (usuario.activo ? "" : " · Inactivo");
   info.appendChild(detalle);
 
   fila.appendChild(info);
@@ -2138,10 +2154,10 @@ function renderUsuarioRowEdicion(fila, usuario) {
 
   const selectRol = document.createElement("select");
   selectRol.className = "form-input";
-  ["vendedora", "admin"].forEach(function (rol) {
+  ["vendedora", "editor", "admin"].forEach(function (rol) {
     const opcion = document.createElement("option");
     opcion.value = rol;
-    opcion.textContent = rol === "admin" ? "Admin" : "Vendedora";
+    opcion.textContent = etiquetaRol(rol);
     opcion.selected = usuario.rol === rol;
     selectRol.appendChild(opcion);
   });
