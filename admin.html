@@ -169,14 +169,20 @@
       font-size: 0.875rem;
     }
     .table-variants th, .table-variants td {
-      padding: 0.6rem 0.75rem;
+      padding: 0.55rem 0.75rem;
       text-align: left;
       border-bottom: 1px solid var(--color-border);
     }
     .table-variants th {
-      background: #f9fafb;
-      font-weight: 600;
+      background: var(--color-bg);
+      font-weight: 700;
       color: var(--color-text-light);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .table-variants tbody tr:hover {
+      background: var(--color-bg);
     }
     /* Con muchas variantes (fundas con 20+ modelos de teléfono) esta
        tabla scrolleaba junto con toda la página. Se le da altura fija y
@@ -548,7 +554,10 @@
         <div class="product-manager-grid">
           <!-- Barra lateral de productos -->
           <div>
-            <input type="text" id="search-product" class="form-input" placeholder="🔍 Buscar modelo de funda..." style="margin-bottom: 0.75rem;">
+            <div class="site-search-wrap" style="margin-bottom: 0.75rem;">
+              <span class="site-search-icon" aria-hidden="true">🔍</span>
+              <input type="search" id="search-product" class="site-search-input" placeholder="Buscar modelo de funda...">
+            </div>
             <div id="product-list-sidebar" class="product-list-sidebar">
               <!-- Lista de productos generada con JS -->
             </div>
