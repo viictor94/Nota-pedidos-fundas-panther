@@ -799,7 +799,7 @@
         <section class="admin-card">
           <h2>➕ Asignar Usuario</h2>
           <p style="color: var(--color-text-light); margin-bottom: 0.5rem; font-size: 0.9rem;">
-            Primero creá la cuenta desde el Dashboard de Supabase (Authentication → Users → Add user, con su email y contraseña). Copiá el ID (UUID) que le asigna Supabase y completá acá su nombre y rol.
+            Primero creá la cuenta de <strong>login</strong> desde el Dashboard de Supabase (Authentication → Users → Add user, con su email y contraseña). Copiá el UID que le asigna Supabase ahí (⚠️ NO es el ID de la tabla Vendedores/Gestión Vendedores, es otro UUID distinto) y completá acá su nombre y rol.
           </p>
           <ul style="color: var(--color-text-light); margin: 0 0 1rem 1.1rem; font-size: 0.85rem; line-height: 1.5;">
             <li><strong>Admin:</strong> acceso total al panel.</li>
@@ -808,8 +808,11 @@
           </ul>
           <form id="form-add-usuario" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
             <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
-              <label class="form-label" for="usuario-id">ID de usuario (UUID) *</label>
+              <label class="form-label" for="usuario-id">UID de Supabase Auth (login) *</label>
               <input type="text" id="usuario-id" class="form-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required>
+              <p style="color: var(--color-text-light); font-size: 0.75rem; margin-top: 0.2rem;">
+                Dashboard de Supabase → Authentication → Users. No es el id de Gestión Vendedores (ese va abajo, en "Vendedor/a vinculado/a").
+              </p>
             </div>
             <div class="form-group" style="flex: 1; min-width: 160px; margin-bottom: 0;">
               <label class="form-label" for="usuario-nombre">Nombre *</label>
@@ -832,7 +835,7 @@
             <button type="submit" class="btn-primary" style="width: auto; padding: 0.65rem 1.25rem;">➕ Asignar</button>
           </form>
           <p style="color: var(--color-text-light); margin-top: 0.5rem; font-size: 0.82rem;">
-            El vendedor/a vinculado/a solo tiene sentido para rol Vendedora: es lo que le permite tomar y completar sus propios pedidos en Gestión Pedidos.
+            "Vendedor/a vinculado/a" se elige de una lista (ya viene de tu tabla de Gestión Vendedores, no hace falta copiar ningún UUID a mano) y solo tiene sentido para rol Vendedora: es lo que le permite tomar y completar sus propios pedidos en Gestión Pedidos.
           </p>
         </section>
 
