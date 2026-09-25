@@ -52,7 +52,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     configuracionApp = config;
     categoriasDisponibles = categorias;
     actualizarTextoUltimaActualizacion(config.catalogo_actualizado_en);
-    renderChipsCategoria();
+    renderTarjetasCategoria();
     renderCatalogo();
     // En pantallas anchas (PC, grilla de 5 columnas) la primera tanda de
     // productos puede no llegar a llenar el alto de la ventana: hay que
@@ -214,7 +214,6 @@ function wireEventosEstaticos() {
   document.getElementById("btn-terminar-pedido").addEventListener("click", mostrarCheckout);
   document.getElementById("btn-back-catalog").addEventListener("click", volverAlCatalogo);
   configurarScrollInfinito();
-  configurarCarruseles();
   configurarBuscador();
   configurarToggleVista();
 
@@ -241,43 +240,60 @@ function wireEventosEstaticos() {
 // Render del catálogo
 // ---------------------------------------------------------------------
 
-// Chips de categoría: "Todos" + una por categoría activa. Al tocar uno
-// se filtra la grilla de abajo (los carruseles de Promos/Nuevos no se
-// ven afectados, son transversales a categorías).
-function renderChipsCategoria() {
-  const contenedor = document.getElementById("category-chips");
+// Ícono genérico para la tarjeta "Todos" y para cualquier categoría sin
+// ícono propio cargado desde el admin (campo opcional, ver data.js).
+const ICONO_CATEGORIA_TODOS = "🗂️";
+const ICONO_CATEGORIA_DEFECTO = "🏷️";
+
+// Tarjetas de categoría: "Todos" + una por categoría activa. Al tocar
+// una se filtra la grilla de abajo (los carruseles de Promos/Nuevos no
+// se ven afectados, son transversales a categorías).
+function renderTarjetasCategoria() {
+  const contenedor = document.getElementById("category-cards");
   if (!contenedor) return;
 
   while (contenedor.firstChild) {
     contenedor.removeChild(contenedor.firstChild);
   }
 
-  contenedor.appendChild(crearChipCategoria(null, "Todos"));
+  contenedor.appendChild(crearTarjetaCategoria(null, "Todos", ICONO_CATEGORIA_TODOS));
   categoriasDisponibles.forEach(function (categoria) {
-    contenedor.appendChild(crearChipCategoria(categoria.id, categoria.nombre));
+    contenedor.appendChild(
+      crearTarjetaCategoria(categoria.id, categoria.nombre, categoria.icono || ICONO_CATEGORIA_DEFECTO)
+    );
   });
 }
 
-function crearChipCategoria(id, nombre) {
-  const activo = categoriaActivaId === id;
+function crearTarjetaCategoria(id, nombre, icono) {
+  const activa = categoriaActivaId === id;
 
-  const chip = document.createElement("button");
-  chip.type = "button";
-  chip.className = "category-chip" + (activo ? " active" : "");
-  chip.textContent = nombre;
-  chip.setAttribute("role", "tab");
-  chip.setAttribute("aria-selected", activo ? "true" : "false");
+  const tarjeta = document.createElement("button");
+  tarjeta.type = "button";
+  tarjeta.className = "category-card" + (activa ? " active" : "");
+  tarjeta.setAttribute("role", "tab");
+  tarjeta.setAttribute("aria-selected", activa ? "true" : "false");
 
-  chip.addEventListener("click", function () {
+  const spanIcono = document.createElement("span");
+  spanIcono.className = "category-card-icon";
+  spanIcono.textContent = icono;
+  spanIcono.setAttribute("aria-hidden", "true");
+  tarjeta.appendChild(spanIcono);
+
+  const spanNombre = document.createElement("span");
+  spanNombre.className = "category-card-label";
+  spanNombre.textContent = nombre;
+  tarjeta.appendChild(spanNombre);
+
+  tarjeta.addEventListener("click", function () {
     if (categoriaActivaId === id) return;
     categoriaActivaId = id;
     productosVisibles = PRODUCTOS_POR_PAGINA;
-    renderChipsCategoria();
+    renderTarjetasCategoria();
     renderCatalogo();
     seguirCargandoSiSentinelaVisible();
   });
 
-  return chip;
+  return tarjeta;
 }
 
 // Catálogo completo si el chip activo es "Todos", o solo los productos
@@ -573,128 +589,34 @@ function seguirCargandoSiSentinelaVisible() {
   }
 }
 
-// Estado de cada carrusel 3D (coverflow): qué producto está al frente
-// (activo) y referencia a su track en el DOM. "productos" se actualiza
-// en cada render para que las flechas y los clicks sepan hasta dónde
-// pueden moverse.
-// "centrado" marca si ya se hizo el posicionamiento inicial en la
-// tarjeta del medio (ver renderCoverflow): solo pasa una vez, después
-// el activo lo maneja el cliente (flechas, swipe o click).
-const estadoCoverflowPromos = { activo: 0, productos: [], track: null, centrado: false };
-const estadoCoverflowNuevos = { activo: 0, productos: [], track: null, centrado: false };
-
-// Cachea el track de cada carrusel y conecta las flechas ‹ › y el
-// swipe táctil que mueven manualmente cuál producto queda al frente.
-function configurarCarruseles() {
-  estadoCoverflowPromos.track = document.getElementById("carousel-promos");
-  estadoCoverflowNuevos.track = document.getElementById("carousel-nuevos");
-
-  document.getElementById("arrow-left-promos").addEventListener("click", function () {
-    moverCoverflow(estadoCoverflowPromos, -1);
-  });
-  document.getElementById("arrow-right-promos").addEventListener("click", function () {
-    moverCoverflow(estadoCoverflowPromos, 1);
-  });
-  document.getElementById("arrow-left-nuevos").addEventListener("click", function () {
-    moverCoverflow(estadoCoverflowNuevos, -1);
-  });
-  document.getElementById("arrow-right-nuevos").addEventListener("click", function () {
-    moverCoverflow(estadoCoverflowNuevos, 1);
-  });
-
-  agregarSoporteSwipe(estadoCoverflowPromos.track, estadoCoverflowPromos);
-  agregarSoporteSwipe(estadoCoverflowNuevos.track, estadoCoverflowNuevos);
-}
-
-// Navegación por gesto táctil: deslizar el dedo hacia la izquierda
-// avanza a la siguiente tarjeta, hacia la derecha retrocede. Es la
-// forma principal de navegar en celular (las flechas quedan como
-// alternativa). Si el gesto es más horizontal que vertical se frena el
-// scroll de la página mientras dura, para que no compitan entre sí.
-function agregarSoporteSwipe(elemento, estado) {
-  let inicioX = 0;
-  let inicioY = 0;
-  let enCurso = false;
-
-  elemento.addEventListener(
-    "touchstart",
-    function (evento) {
-      const toque = evento.touches[0];
-      inicioX = toque.clientX;
-      inicioY = toque.clientY;
-      enCurso = true;
-    },
-    { passive: true }
-  );
-
-  elemento.addEventListener(
-    "touchmove",
-    function (evento) {
-      if (!enCurso) return;
-      const toque = evento.touches[0];
-      const deltaX = toque.clientX - inicioX;
-      const deltaY = toque.clientY - inicioY;
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        evento.preventDefault();
-      }
-    },
-    { passive: false }
-  );
-
-  elemento.addEventListener("touchend", function (evento) {
-    if (!enCurso) return;
-    enCurso = false;
-
-    const toque = evento.changedTouches[0];
-    const deltaX = toque.clientX - inicioX;
-    const deltaY = toque.clientY - inicioY;
-    const UMBRAL_PX = 35;
-
-    if (Math.abs(deltaX) > UMBRAL_PX && Math.abs(deltaX) > Math.abs(deltaY)) {
-      moverCoverflow(estado, deltaX < 0 ? 1 : -1);
-    }
-  });
-}
-
-// Arma los carruseles "Promos del Día" y "Nuevos Ingresos" a partir de
-// los carteles que tilda el admin; cada uno se oculta si no hay ningún
-// producto marcado. Ninguno se saca de la grilla de abajo: ver
-// ordenarDestacadosPrimero.
+// Las secciones "Promos del Día" y "Nuevos Ingresos" son filas
+// estáticas con scroll horizontal (sin animación 3D ni swipe a mano):
+// el navegador ya resuelve el scroll táctil/mouse por su cuenta, igual
+// que las tarjetas de categoría.
 function renderCarruseles() {
-  renderCoverflow(
+  renderFilaDestacados(
     "carousel-promos-wrap",
-    estadoCoverflowPromos,
+    "carousel-promos",
     catalogoCompleto.filter(function (p) {
       return p.en_promo;
     })
   );
-  renderCoverflow(
+  renderFilaDestacados(
     "carousel-nuevos-wrap",
-    estadoCoverflowNuevos,
+    "carousel-nuevos",
     catalogoCompleto.filter(function (p) {
       return p.es_nuevo;
     })
   );
 }
 
-function renderCoverflow(idWrap, estado, productos) {
+function renderFilaDestacados(idWrap, idTrack, productos) {
   const wrap = document.getElementById(idWrap);
-  const track = estado.track;
+  const track = document.getElementById(idTrack);
 
   while (track.firstChild) {
     track.removeChild(track.firstChild);
   }
-
-  // La primera vez que este carrusel recibe productos arranca centrado
-  // en el del medio del set (no en el primero), para que el cliente
-  // pueda elegir deslizar hacia cualquiera de los dos lados en vez de
-  // quedar pegado contra el borde izquierdo.
-  if (!estado.centrado && productos.length > 0) {
-    estado.activo = Math.floor((productos.length - 1) / 2);
-    estado.centrado = true;
-  }
-
-  estado.productos = productos;
 
   if (productos.length === 0) {
     wrap.style.display = "none";
@@ -702,65 +624,11 @@ function renderCoverflow(idWrap, estado, productos) {
   }
 
   wrap.style.display = "block";
-  if (estado.activo >= productos.length) {
-    estado.activo = productos.length - 1;
-  }
-
-  productos.forEach(function (producto, indice) {
-    track.appendChild(crearTarjetaCoverflow(producto, indice, estado));
+  productos.forEach(function (producto) {
+    const tarjeta = crearTarjetaProducto(producto);
+    tarjeta.classList.add("destacado-card");
+    track.appendChild(tarjeta);
   });
-
-  actualizarPosicionesCoverflow(estado);
-}
-
-// Mueve manualmente el carrusel (flechas ‹ ›), sin pasarse de los
-// extremos.
-function moverCoverflow(estado, delta) {
-  if (estado.productos.length === 0) return;
-  estado.activo = Math.max(0, Math.min(estado.productos.length - 1, estado.activo + delta));
-  actualizarPosicionesCoverflow(estado);
-}
-
-// Acomoda cada tarjeta según su distancia a la que está "al frente":
-// la activa queda grande y de frente, las de los costados más chicas,
-// tenues e inclinadas (efecto 3D tipo coverflow). Se calcula todo acá
-// (no con CSS puro) porque la posición depende de cuál está activa,
-// algo que cambia con cada click/flecha.
-function actualizarPosicionesCoverflow(estado) {
-  const tarjetas = estado.track.children;
-
-  for (let i = 0; i < tarjetas.length; i++) {
-    const offset = i - estado.activo;
-    const distancia = Math.abs(offset);
-    const tarjeta = tarjetas[i];
-
-    const traslado = offset * 68;
-    const escala = offset === 0 ? 1 : Math.max(0.6, 1 - distancia * 0.16);
-    const rotacion = offset === 0 ? 0 : offset > 0 ? -20 : 20;
-    const opacidad = distancia === 0 ? 1 : distancia === 1 ? 0.75 : distancia === 2 ? 0.4 : 0;
-
-    tarjeta.style.transform =
-      "translate(-50%, -50%) translateX(" + traslado + "px) scale(" + escala + ") rotateY(" + rotacion + "deg)";
-    tarjeta.style.opacity = String(opacidad);
-    tarjeta.style.zIndex = String(100 - distancia);
-    tarjeta.style.pointerEvents = distancia <= 2 ? "auto" : "none";
-  }
-}
-
-// Tarjeta del carrusel 3D: si ya está al frente, tocarla abre el
-// modal de variantes (como en la grilla); si está a un costado, el
-// click la trae al frente en vez de abrir el modal.
-function crearTarjetaCoverflow(producto, indice, estado) {
-  const tarjeta = construirTarjetaBase(producto);
-  tarjeta.addEventListener("click", function () {
-    if (estado.activo === indice) {
-      abrirModalVariantes(producto);
-    } else {
-      estado.activo = indice;
-      actualizarPosicionesCoverflow(estado);
-    }
-  });
-  return tarjeta;
 }
 
 function crearTarjetaProducto(producto) {
@@ -772,9 +640,8 @@ function crearTarjetaProducto(producto) {
 }
 
 // Arma el DOM de una tarjeta de producto (foto, carteles, nombre,
-// precios), sin el listener de click: crearTarjetaProducto (grilla) y
-// crearTarjetaCoverflow (carruseles) le agregan cada uno el suyo,
-// porque el click hace cosas distintas en cada contexto.
+// precios), reutilizada por la grilla, las filas de destacados
+// (Promos/Nuevos) y la vista de lista (botón "Ver" del título).
 function construirTarjetaBase(producto) {
   // Se necesita la variante más barata completa (no solo su precio)
   // para poder mostrar su precio_anterior real si el admin lo cargó.

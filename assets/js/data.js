@@ -59,11 +59,11 @@ async function obtenerCatalogoCompleto() {
 // Categorías de producto
 // ---------------------------------------------------------------------
 
-// Solo activas, para los chips de filtro del catálogo cliente.
+// Solo activas, para las tarjetas de filtro del catálogo cliente.
 async function obtenerCategorias() {
   const { data, error } = await supabaseClient
     .from("categorias")
-    .select("id, nombre, orden, activo")
+    .select("id, nombre, icono, orden, activo")
     .eq("activo", true)
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
@@ -78,7 +78,7 @@ async function obtenerCategorias() {
 async function obtenerCategoriasCompleto() {
   const { data, error } = await supabaseClient
     .from("categorias")
-    .select("id, nombre, orden, activo")
+    .select("id, nombre, icono, orden, activo")
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
 
@@ -88,10 +88,10 @@ async function obtenerCategoriasCompleto() {
   return data;
 }
 
-async function crearCategoria(nombre) {
+async function crearCategoria(nombre, icono) {
   const { data, error } = await supabaseClient
     .from("categorias")
-    .insert({ nombre: nombre })
+    .insert({ nombre: nombre, icono: icono || null })
     .select()
     .single();
 

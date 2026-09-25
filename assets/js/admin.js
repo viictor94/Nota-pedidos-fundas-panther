@@ -1726,7 +1726,7 @@ function renderCategoriaRowVista(fila, categoria, indice, total) {
 
   const nombre = document.createElement("span");
   nombre.className = "vendedor-row-name";
-  nombre.textContent = categoria.nombre;
+  nombre.textContent = (categoria.icono ? categoria.icono + " " : "") + categoria.nombre;
   info.appendChild(nombre);
 
   const estado = document.createElement("span");
@@ -1843,6 +1843,15 @@ function renderCategoriaRowEdicion(fila, categoria, indice, total) {
   inputNombre.value = categoria.nombre;
   campos.appendChild(inputNombre);
 
+  const inputIcono = document.createElement("input");
+  inputIcono.type = "text";
+  inputIcono.className = "form-input";
+  inputIcono.style.maxWidth = "70px";
+  inputIcono.maxLength = 4;
+  inputIcono.placeholder = "🏷️";
+  inputIcono.value = categoria.icono || "";
+  campos.appendChild(inputIcono);
+
   fila.appendChild(campos);
 
   const acciones = document.createElement("div");
@@ -1860,7 +1869,7 @@ function renderCategoriaRowEdicion(fila, categoria, indice, total) {
     if (!nombreNuevo) return;
 
     try {
-      await actualizarCategoria(categoria.id, { nombre: nombreNuevo });
+      await actualizarCategoria(categoria.id, { nombre: nombreNuevo, icono: inputIcono.value.trim() || null });
       categoriasAdmin = await obtenerCategoriasCompleto();
       renderCategoriasLista();
       renderSelectsCategorias();
@@ -1916,10 +1925,11 @@ async function manejarSubmitAgregarCategoria(evento) {
   evento.preventDefault();
 
   const nombre = document.getElementById("categoria-nombre").value.trim();
+  const icono = document.getElementById("categoria-icono").value.trim();
   if (!nombre) return;
 
   try {
-    await crearCategoria(nombre);
+    await crearCategoria(nombre, icono);
     document.getElementById("form-add-categoria").reset();
     categoriasAdmin = await obtenerCategoriasCompleto();
     renderCategoriasLista();

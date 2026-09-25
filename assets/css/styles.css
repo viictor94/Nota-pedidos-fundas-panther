@@ -370,139 +370,100 @@ a {
   gap: 1rem;
 }
 
-/* ---------- Carruseles de destacados (Nuevos Ingresos / Promos) ---------- */
+/* ---------- Carruseles de destacados (Nuevos Ingresos / Promos) ----------
+   Fila estática con scroll horizontal nativo (sin animación 3D ni swipe a
+   mano): mismo patrón que .category-cards, el navegador resuelve el
+   arrastre táctil/mouse por su cuenta. */
 .carousel-wrap {
   margin-bottom: 1.75rem;
 }
 
 .carousel-title {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 800;
   color: var(--color-text);
-  margin: 0 0 0.85rem;
-  text-align: center;
+  margin: 0 0 0.75rem;
 }
 
-/* Fila con las flechas ‹ › a los costados y el track 3D en el medio. */
-.coverflow-viewport {
+.destacados-scroll {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  gap: 0.85rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.5rem;
+  scrollbar-width: none;
+}
+.destacados-scroll::-webkit-scrollbar {
+  display: none;
 }
 
-/* Las tarjetas son las mismas .product-card (mismo look, mismos
-   carteles); acá quedan posicionadas de forma absoluta porque su
-   lugar (centro/costado, grande/chica) lo calcula app.js según cuál
-   está "al frente" (ver actualizarPosicionesCoverflow). Más alto que
-   la tarjeta más alta posible, para que no se corte ni tape el precio;
-   el degradé en los bordes disimula el recorte horizontal de las
-   tarjetas de costado en vez de un corte seco.
-   */
-.coverflow-track {
-  position: relative;
-  flex: 1;
-  height: 320px;
-  overflow: hidden;
-  perspective: 900px;
-  /* Deja que el navegador siga scrolleando la página verticalmente; el
-     gesto horizontal (para navegar el carrusel) lo maneja JS a mano. */
-  touch-action: pan-y;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
-}
-
-.coverflow-track .product-card {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 128px;
+.destacado-card {
+  flex: 0 0 auto;
+  width: 150px;
   cursor: pointer;
 }
 
-/* Nombre acotado a 2 líneas solo en el carrusel, para que la altura de
-   la tarjeta sea previsible y no dependa de nombres muy largos. */
-.coverflow-track .product-card-name {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* El transform lo pisa JS en cada momento (según qué tan lejos está
-   del centro, ver actualizarPosicionesCoverflow); acá solo se anima
-   la transición entre un valor y el siguiente. Al ser estilo inline,
-   esto también gana sobre el transform de .product-card:hover, así
-   que no compiten entre sí. */
-.coverflow-track .product-card {
-  transition: transform 0.35s ease, opacity 0.35s ease;
-}
-
-.coverflow-arrow {
-  flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-border);
-  background: #fff;
-  color: var(--color-primary);
-  font-size: 1.3rem;
-  font-weight: 800;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow-sm);
-}
-
-.coverflow-arrow:hover {
-  background: var(--color-primary-light);
-}
-
-/* ---------- Barra de herramientas del catálogo (chips + toggle de vista) ---------- */
+/* ---------- Barra de herramientas del catálogo (tarjetas de categoría +
+   toggle de vista) ---------- */
 .catalog-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
 
-.catalog-toolbar .category-chips {
+.catalog-toolbar .category-cards {
   flex: 1;
   min-width: 0;
   margin-bottom: 0;
 }
 
-/* ---------- Chips de categoría ---------- */
-.category-chips {
+/* ---------- Tarjetas de categoría ---------- */
+.category-cards {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 0.5rem;
-  margin-bottom: 0.75rem;
   scrollbar-width: none; /* Firefox: el scroll sigue funcionando, solo se oculta la barra */
 }
-.category-chips::-webkit-scrollbar {
+.category-cards::-webkit-scrollbar {
   display: none;
 }
-.category-chip {
+.category-card {
   flex: 0 0 auto;
-  white-space: nowrap;
+  width: 82px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.6rem 0.35rem;
   background: var(--color-surface);
   border: 1.5px solid var(--color-border);
-  border-radius: 999px;
-  padding: 0.45rem 1rem;
-  font-size: 0.85rem;
-  font-weight: 700;
+  border-radius: var(--radius-md);
   color: var(--color-text-light);
+  text-align: center;
 }
-.category-chip.active {
-  background: var(--color-primary);
+.category-card-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.category-card-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.category-card.active {
+  background: var(--color-primary-light);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--color-primary-dark);
 }
 
-/* Toggle Grilla / Lista */
+/* Toggle Grilla / Lista: se mantiene arriba a la derecha del todo,
+   parejo con el borde superior de las tarjetas (ver align-items:
+   flex-start en .catalog-toolbar), aunque las tarjetas sean más altas. */
 .view-toggle {
   flex: 0 0 auto;
   display: flex;
@@ -549,19 +510,20 @@ a {
 
 .catalog-list-table thead th {
   text-align: left;
-  padding: 0.75rem 0.9rem;
+  padding: 0.5rem 0.9rem;
   background: var(--color-bg);
   color: var(--color-text-light);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   border-bottom: 1px solid var(--color-border);
 }
 
 .catalog-list-table td {
-  padding: 0.65rem 0.9rem;
+  padding: 0.3rem 0.9rem;
   border-bottom: 1px solid var(--color-border);
   vertical-align: middle;
+  font-size: 0.82rem;
 }
 
 .catalog-list-table tbody tr:last-child td {
@@ -572,7 +534,7 @@ a {
    mismo look que el resto de la tabla pero destacada (fondo tenue). */
 .list-title-row td {
   background: var(--color-primary-light);
-  padding: 0.55rem 0.9rem;
+  padding: 0.35rem 0.9rem;
 }
 
 .list-title-row-inner {
@@ -613,7 +575,7 @@ a {
   display: block;
   color: var(--color-text-light);
   text-decoration: line-through;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
 }
 
 .list-precio-actual {
@@ -623,13 +585,18 @@ a {
 }
 
 .qty-control-compact {
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .qty-btn-sm {
-  width: 30px;
-  height: 30px;
-  font-size: 1.05rem;
+  width: 24px;
+  height: 24px;
+  font-size: 0.9rem;
+}
+
+.qty-control-compact .qty-value {
+  min-width: 1.1rem;
+  font-size: 0.82rem;
 }
 
 .catalog-load-status {
@@ -1405,12 +1372,8 @@ a {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .coverflow-track {
-    height: 360px;
-  }
-
-  .coverflow-track .product-card {
-    width: 165px;
+  .destacado-card {
+    width: 175px;
   }
 }
 

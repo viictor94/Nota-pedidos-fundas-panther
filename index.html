@@ -50,25 +50,17 @@
            traerla al frente, o usar las flechas ‹ ›. -->
       <div id="carousel-promos-wrap" class="carousel-wrap" style="display: none;">
         <h2 class="carousel-title">🔥 Promos del Día</h2>
-        <div class="coverflow-viewport">
-          <button type="button" id="arrow-left-promos" class="coverflow-arrow" aria-label="Promo anterior">‹</button>
-          <div id="carousel-promos" class="coverflow-track"></div>
-          <button type="button" id="arrow-right-promos" class="coverflow-arrow" aria-label="Promo siguiente">›</button>
-        </div>
+        <div id="carousel-promos" class="destacados-scroll"></div>
       </div>
 
       <div id="carousel-nuevos-wrap" class="carousel-wrap" style="display: none;">
         <h2 class="carousel-title">🆕 Nuevos Ingresos</h2>
-        <div class="coverflow-viewport">
-          <button type="button" id="arrow-left-nuevos" class="coverflow-arrow" aria-label="Nuevo anterior">‹</button>
-          <div id="carousel-nuevos" class="coverflow-track"></div>
-          <button type="button" id="arrow-right-nuevos" class="coverflow-arrow" aria-label="Nuevo siguiente">›</button>
-        </div>
+        <div id="carousel-nuevos" class="destacados-scroll"></div>
       </div>
 
       <div class="catalog-toolbar">
-        <div id="category-chips" class="category-chips" role="tablist" aria-label="Filtrar por categoría">
-          <!-- Chips insertados vía JS: "Todos" + una por categoría activa -->
+        <div id="category-cards" class="category-cards" role="tablist" aria-label="Filtrar por categoría">
+          <!-- Tarjetas insertadas vía JS: "Todos" + una por categoría activa -->
         </div>
         <div class="view-toggle" role="group" aria-label="Cambiar tipo de vista">
           <button type="button" id="btn-vista-grid" class="view-toggle-btn active" aria-label="Ver en grilla" title="Ver en grilla">▦</button>

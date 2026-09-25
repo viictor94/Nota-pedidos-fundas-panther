@@ -762,8 +762,15 @@
               <label class="form-label" for="categoria-nombre">Nombre *</label>
               <input type="text" id="categoria-nombre" class="form-input" required>
             </div>
+            <div class="form-group" style="flex: 0 0 110px; margin-bottom: 0;">
+              <label class="form-label" for="categoria-icono">Ícono (emoji)</label>
+              <input type="text" id="categoria-icono" class="form-input" placeholder="📱" maxlength="4">
+            </div>
             <button type="submit" class="btn-primary" style="width: auto; padding: 0.65rem 1.25rem;">➕ Agregar</button>
           </form>
+          <p style="color: var(--color-text-light); font-size: 0.8rem; margin-top: 0.5rem;">
+            El ícono es opcional: si no cargás uno, el cliente ve un ícono genérico 🏷️ para esa categoría.
+          </p>
         </section>
 
         <section class="admin-card">

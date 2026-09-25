@@ -72,11 +72,17 @@ create index if not exists variantes_producto_id_idx on public.variantes(product
 create table if not exists public.categorias (
   id          uuid primary key default gen_random_uuid(),
   nombre      text not null,
+  icono       text,
   orden       integer not null default 0,
   activo      boolean not null default true,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- "icono" nullable a propósito: se sumó después de crear la tabla. El
+-- catálogo cliente muestra un ícono genérico si una categoría no tiene
+-- uno propio cargado (ver app.js).
+alter table public.categorias add column if not exists icono text;
 
 drop index if exists public.categorias_nombre_unq;
 create unique index categorias_nombre_unq on public.categorias (lower(trim(nombre)));
