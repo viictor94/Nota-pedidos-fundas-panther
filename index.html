@@ -48,19 +48,21 @@
     <!-- Sección de Catálogo -->
     <section id="catalog-section" class="catalog-section active">
 
-      <!-- Fila estática de "Promos del Día" (solo se muestra si hay
-           productos marcados como en_promo). -->
-      <div id="carousel-promos-wrap" class="carousel-wrap" style="display: none;">
-        <h2 class="carousel-title">🔥 Promos del Día</h2>
-        <div id="carousel-promos" class="destacados-scroll"></div>
-      </div>
-
-      <!-- Tarjetas grandes de categoría: imagen (silueta sin fondo,
-           cargada desde el admin) + nombre. "Todos" + una por categoría
-           activa. Al tocar una se filtra la grilla/lista de abajo. -->
+      <!-- Tarjetas de categoría: imagen (silueta sin fondo, cargada
+           desde el admin) + nombre. "Todos" + una por categoría activa.
+           Al tocar una se filtra la grilla/lista de abajo. Van primero
+           en la página: es el primer punto de contacto del cliente con
+           el catálogo. -->
       <h2 class="carousel-title">Categorías</h2>
       <div id="category-cards" class="category-cards" role="tablist" aria-label="Filtrar por categoría">
         <!-- Tarjetas insertadas vía JS -->
+      </div>
+
+      <!-- Fila estática de "Promociones" (solo se muestra si hay
+           productos marcados como en_promo). -->
+      <div id="carousel-promos-wrap" class="carousel-wrap" style="display: none;">
+        <h2 class="carousel-title">🔥 Promociones</h2>
+        <div id="carousel-promos" class="destacados-scroll"></div>
       </div>
 
       <div class="catalog-toolbar">
