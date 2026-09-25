@@ -7,10 +7,6 @@
 // haya creado la variable global "supabaseClient".
 // =====================================================================
 
-// El panel admin no pide email: usa Supabase Auth con un único usuario
-// fijo, y el campo "PIN" del formulario se manda como contraseña.
-const ADMIN_EMAIL = "admin@panther.internal";
-
 // ---------------------------------------------------------------------
 // Lectura pública del catálogo
 // ---------------------------------------------------------------------
@@ -291,14 +287,15 @@ async function obtenerVendedoresPublico() {
 }
 
 // ---------------------------------------------------------------------
-// Autenticación de administrador (PIN = contraseña de un único
-// usuario de Supabase Auth)
+// Autenticación de administrador (cuentas individuales de Supabase
+// Auth: cada persona tiene su propio email + contraseña, en vez del PIN
+// único de antes)
 // ---------------------------------------------------------------------
 
-async function iniciarSesionAdmin(pin) {
+async function iniciarSesionAdmin(email, password) {
   const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: ADMIN_EMAIL,
-    password: pin,
+    email: email,
+    password: password,
   });
 
   if (error) {
@@ -316,19 +313,100 @@ async function obtenerSesionAdmin() {
   return data.session;
 }
 
-// Revalida el PIN actual (haciendo login de nuevo) y, si es correcto,
-// cambia la contraseña del usuario admin al PIN nuevo.
-async function cambiarPinAdmin(pinActual, pinNuevo) {
-  const resultado = await iniciarSesionAdmin(pinActual);
-  if (!resultado.ok) {
-    return { ok: false, error: "El PIN actual no es correcto." };
+// Datos del usuario logueado (id/email), tal como los guarda Supabase
+// Auth. null si no hay sesión activa.
+async function obtenerUsuarioActual() {
+  const { data } = await supabaseClient.auth.getUser();
+  return data && data.user ? data.user : null;
+}
+
+// Revalida la contraseña actual (haciendo login de nuevo) y, si es
+// correcta, la cambia por la nueva.
+async function cambiarPasswordAdmin(passwordActual, passwordNuevo) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario || !usuario.email) {
+    return { ok: false, error: "No se pudo determinar el usuario actual." };
   }
 
-  const { error } = await supabaseClient.auth.updateUser({ password: pinNuevo });
+  const resultado = await iniciarSesionAdmin(usuario.email, passwordActual);
+  if (!resultado.ok) {
+    return { ok: false, error: "La contraseña actual no es correcta." };
+  }
+
+  const { error } = await supabaseClient.auth.updateUser({ password: passwordNuevo });
   if (error) {
     return { ok: false, error: error.message };
   }
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------
+// Perfiles de acceso al panel admin (nombre/rol de cada usuario de
+// Supabase Auth; ver supabase/schema.sql, tabla perfiles_admin)
+// ---------------------------------------------------------------------
+
+// Perfil del usuario actualmente logueado (para saber su nombre/rol al
+// entrar al panel). null si todavía no tiene perfil asignado.
+async function obtenerPerfilActual() {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) {
+    return null;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("perfiles_admin")
+    .select("nombre, rol")
+    .eq("id", usuario.id)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+// Lista completa de perfiles (solo la puede pedir un admin; ver política
+// RLS "perfiles_lectura_propia_o_admin").
+async function obtenerPerfilesAdmin() {
+  const { data, error } = await supabaseClient
+    .from("perfiles_admin")
+    .select("id, nombre, rol, activo")
+    .order("nombre", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+// Asigna nombre/rol a una cuenta de Supabase Auth ya creada desde el
+// Dashboard (no crea la cuenta en sí: eso requeriría la Service Role
+// Key, que nunca debe exponerse en el navegador).
+async function crearPerfilAdmin(id, nombre, rol) {
+  const { data, error } = await supabaseClient
+    .from("perfiles_admin")
+    .insert({ id: id, nombre: nombre, rol: rol })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+async function actualizarPerfilAdmin(id, campos) {
+  const { error } = await supabaseClient.from("perfiles_admin").update(campos).eq("id", id);
+  if (error) {
+    throw error;
+  }
+}
+
+async function eliminarPerfilAdmin(id) {
+  const { error } = await supabaseClient.from("perfiles_admin").delete().eq("id", id);
+  if (error) {
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------

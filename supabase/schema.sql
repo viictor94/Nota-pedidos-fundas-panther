@@ -557,6 +557,74 @@ grant execute on function public.obtener_vendedores_publico() to anon, authentic
 drop function if exists public.asignar_vendedor_automatico();
 
 -- ---------------------------------------------------------------------
+-- Perfiles de acceso al panel admin (multi-usuario con roles)
+--
+-- Antes había un único usuario fijo de Supabase Auth (admin@panther...)
+-- y cualquiera que entrara con ese PIN podía hacer cualquier cosa. Con
+-- el panel volviéndose más crítico, se pasa a cuentas individuales:
+-- cada persona (admin o vendedora) tiene su propio login de Supabase
+-- Auth, y esta tabla guarda qué nombre/rol le corresponde a cada una.
+--
+-- Alta de un usuario nuevo: se crea la cuenta desde el Dashboard de
+-- Supabase (Authentication → Users → Add user, con su email y
+-- contraseña), y con el UUID que le asigna Supabase se completa el
+-- nombre/rol acá (desde el tab "Usuarios" del panel admin, o a mano en
+-- este mismo SQL Editor). No se crea el usuario de Auth desde el
+-- navegador para no tener que exponer la Service Role Key ahí.
+-- ---------------------------------------------------------------------
+
+create table if not exists public.perfiles_admin (
+  id          uuid primary key references auth.users(id) on delete cascade,
+  nombre      text not null,
+  rol         text not null default 'vendedora' check (rol in ('admin', 'vendedora')),
+  activo      boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+drop trigger if exists trg_perfiles_admin_updated on public.perfiles_admin;
+create trigger trg_perfiles_admin_updated before update on public.perfiles_admin
+  for each row execute function public.set_updated_at();
+
+-- Funciones "security definer": corren con los permisos de quien las
+-- creó (el proyecto de Supabase), no de quien las llama, así que pueden
+-- leer perfiles_admin aunque su propia política de RLS (ver más abajo)
+-- le impida a un usuario cualquiera ver la fila de otro. Sin esto,
+-- cualquier política que quisiera chequear el rol del usuario actual
+-- caería en una referencia circular contra su propia tabla.
+create or replace function public.es_admin()
+returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.perfiles_admin
+    where id = auth.uid() and rol = 'admin' and activo
+  );
+$$;
+
+create or replace function public.tiene_acceso_admin()
+returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.perfiles_admin
+    where id = auth.uid() and activo
+  );
+$$;
+
+-- Migra al único admin histórico (usuario fijo de antes de que
+-- existiera esta tabla) para que no pierda el acceso: si ya tiene una
+-- cuenta de Auth con ese email, le asigna rol "admin" acá. No hace nada
+-- si esa cuenta no existe (proyecto nuevo) o si ya estaba migrada.
+insert into public.perfiles_admin (id, nombre, rol)
+select id, 'Admin', 'admin'
+from auth.users
+where email = 'admin@panther.internal'
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------
 
@@ -566,6 +634,7 @@ alter table public.categorias enable row level security;
 alter table public.app_config enable row level security;
 alter table public.pedidos enable row level security;
 alter table public.vendedores enable row level security;
+alter table public.perfiles_admin enable row level security;
 
 -- "create policy" no admite "if not exists": para que el archivo entero
 -- sea seguro de re-ejecutar (ya pasó que una corrida anterior dejó
@@ -576,51 +645,64 @@ create policy "productos_lectura_publica" on public.productos
   for select using (true);
 drop policy if exists "productos_escritura_admin" on public.productos;
 create policy "productos_escritura_admin" on public.productos
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+  for all using (public.es_admin()) with check (public.es_admin());
 
 drop policy if exists "variantes_lectura_publica" on public.variantes;
 create policy "variantes_lectura_publica" on public.variantes
   for select using (true);
 drop policy if exists "variantes_escritura_admin" on public.variantes;
 create policy "variantes_escritura_admin" on public.variantes
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+  for all using (public.es_admin()) with check (public.es_admin());
 
 drop policy if exists "categorias_lectura_publica" on public.categorias;
 create policy "categorias_lectura_publica" on public.categorias
   for select using (true);
 drop policy if exists "categorias_escritura_admin" on public.categorias;
 create policy "categorias_escritura_admin" on public.categorias
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+  for all using (public.es_admin()) with check (public.es_admin());
 
 drop policy if exists "config_lectura_publica" on public.app_config;
 create policy "config_lectura_publica" on public.app_config
   for select using (true);
 drop policy if exists "config_escritura_admin" on public.app_config;
 create policy "config_escritura_admin" on public.app_config
-  for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+  for update using (public.es_admin()) with check (public.es_admin());
 
 drop policy if exists "pedidos_insert_publico" on public.pedidos;
 create policy "pedidos_insert_publico" on public.pedidos
   for insert with check (true);
+-- Lectura: admin y vendedora (pestaña "Gestión Pedidos" del panel).
+-- Escritura/borrado: solo admin (asignar vendedor/a, completar,
+-- corregir datos o eliminar un pedido quedan reservados al admin).
 drop policy if exists "pedidos_lectura_admin" on public.pedidos;
 create policy "pedidos_lectura_admin" on public.pedidos
-  for select using (auth.role() = 'authenticated');
+  for select using (public.tiene_acceso_admin());
 drop policy if exists "pedidos_escritura_admin" on public.pedidos;
 create policy "pedidos_escritura_admin" on public.pedidos
-  for update using (auth.role() = 'authenticated');
+  for update using (public.es_admin());
 drop policy if exists "pedidos_borrado_admin" on public.pedidos;
 create policy "pedidos_borrado_admin" on public.pedidos
-  for delete using (auth.role() = 'authenticated');
+  for delete using (public.es_admin());
 
 -- Vendedores: son datos internos de la empresa (no hace falta que el
 -- cliente los vea), así que a diferencia del catálogo van sin lectura
--- pública, solo admin autenticado.
+-- pública, solo admin.
 drop policy if exists "vendedores_lectura_admin" on public.vendedores;
 create policy "vendedores_lectura_admin" on public.vendedores
-  for select using (auth.role() = 'authenticated');
+  for select using (public.es_admin());
 drop policy if exists "vendedores_escritura_admin" on public.vendedores;
 create policy "vendedores_escritura_admin" on public.vendedores
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+  for all using (public.es_admin()) with check (public.es_admin());
+
+-- Perfiles: cada quien puede ver su propio perfil (para saber su
+-- nombre/rol al entrar al panel); solo el admin puede ver la lista
+-- completa o dar de alta/editar/borrar perfiles de otras personas.
+drop policy if exists "perfiles_lectura_propia_o_admin" on public.perfiles_admin;
+create policy "perfiles_lectura_propia_o_admin" on public.perfiles_admin
+  for select using (id = auth.uid() or public.es_admin());
+drop policy if exists "perfiles_escritura_admin" on public.perfiles_admin;
+create policy "perfiles_escritura_admin" on public.perfiles_admin
+  for all using (public.es_admin()) with check (public.es_admin());
 
 -- ---------------------------------------------------------------------
 -- Storage: bucket público de fotos de producto y placeholder.
@@ -636,10 +718,10 @@ create policy "assets_lectura_publica" on storage.objects
   for select using (bucket_id = 'assets-publicos');
 drop policy if exists "assets_escritura_admin" on storage.objects;
 create policy "assets_escritura_admin" on storage.objects
-  for insert with check (bucket_id = 'assets-publicos' and auth.role() = 'authenticated');
+  for insert with check (bucket_id = 'assets-publicos' and public.es_admin());
 drop policy if exists "assets_actualizacion_admin" on storage.objects;
 create policy "assets_actualizacion_admin" on storage.objects
-  for update using (bucket_id = 'assets-publicos' and auth.role() = 'authenticated');
+  for update using (bucket_id = 'assets-publicos' and public.es_admin());
 drop policy if exists "assets_borrado_admin" on storage.objects;
 create policy "assets_borrado_admin" on storage.objects
-  for delete using (bucket_id = 'assets-publicos' and auth.role() = 'authenticated');
+  for delete using (bucket_id = 'assets-publicos' and public.es_admin());

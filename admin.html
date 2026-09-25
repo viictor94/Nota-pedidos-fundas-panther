@@ -437,21 +437,24 @@
 </head>
 <body>
 
-  <!-- PANTALLA DE BLOQUEO / SEGURIDAD (PIN) -->
+  <!-- PANTALLA DE BLOQUEO / SEGURIDAD (login individual) -->
   <div id="lock-screen" class="lock-screen">
     <div class="lock-card">
       <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔒</div>
       <h2 style="margin-bottom: 0.5rem; color: var(--color-primary);">Acceso Administrador</h2>
       <p style="color: var(--color-text-light); font-size: 0.875rem; margin-bottom: 1.5rem;">
-        Ingresa tu PIN de seguridad para acceder al panel de gestión.
+        Ingresá tu email y contraseña para acceder al panel de gestión.
       </p>
 
       <form id="pin-form">
         <div class="form-group">
-          <input type="password" id="input-pin" class="form-input" placeholder="PIN de 4 dígitos" maxlength="10" required style="text-align: center; font-size: 1.25rem; letter-spacing: 0.3rem;" autofocus>
+          <input type="email" id="input-email" class="form-input" placeholder="Email" required autofocus style="margin-bottom: 0.75rem;">
+        </div>
+        <div class="form-group">
+          <input type="password" id="input-pin" class="form-input" placeholder="Contraseña" required>
         </div>
         <div id="pin-error-msg" style="color: #dc2626; font-size: 0.85rem; margin-bottom: 1rem; display: none;">
-          PIN incorrecto. Inténtalo de nuevo.
+          Email o contraseña incorrectos. Intentalo de nuevo.
         </div>
         <button type="submit" class="btn-primary" style="justify-content: center; width: 100%; margin-bottom: 0.75rem;">
           Desbloquear Panel
@@ -476,7 +479,7 @@
             ⚙️
           </button>
           <button type="button" id="btn-change-pin" class="btn-secondary" style="margin: 0; width: auto; padding: 0.4rem 0.75rem; font-size: 0.8rem;">
-            🔑 Cambiar PIN
+            🔑 Cambiar Contraseña
           </button>
           <a href="index.html" class="btn-secondary" style="margin: 0; width: auto; padding: 0.5rem 1rem; font-size: 0.875rem;">
             ← Ver Catálogo
@@ -495,6 +498,7 @@
         <button type="button" class="admin-tab-btn" data-tab="tab-pedidos">🧾 Gestión Pedidos</button>
         <button type="button" class="admin-tab-btn" data-tab="tab-vendedores">🧑‍💼 Gestión Vendedores</button>
         <button type="button" class="admin-tab-btn" data-tab="tab-categorias">🏷️ Categorías</button>
+        <button type="button" class="admin-tab-btn" data-tab="tab-usuarios">👤 Usuarios</button>
       </nav>
 
       <div id="tab-stock" class="admin-tab-panel active">
@@ -767,6 +771,44 @@
         </section>
       </div>
 
+      <!-- PESTAÑA: USUARIOS (solo visible para rol admin) -->
+      <div id="tab-usuarios" class="admin-tab-panel">
+        <section class="admin-card">
+          <h2>➕ Asignar Usuario</h2>
+          <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.9rem;">
+            Primero creá la cuenta desde el Dashboard de Supabase (Authentication → Users → Add user, con su email y contraseña). Copiá el ID (UUID) que le asigna Supabase y completá acá su nombre y rol.
+          </p>
+          <form id="form-add-usuario" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+            <div class="form-group" style="flex: 1; min-width: 260px; margin-bottom: 0;">
+              <label class="form-label" for="usuario-id">ID de usuario (UUID) *</label>
+              <input type="text" id="usuario-id" class="form-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required>
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 160px; margin-bottom: 0;">
+              <label class="form-label" for="usuario-nombre">Nombre *</label>
+              <input type="text" id="usuario-nombre" class="form-input" required>
+            </div>
+            <div class="form-group" style="flex: 0 0 150px; margin-bottom: 0;">
+              <label class="form-label" for="usuario-rol">Rol *</label>
+              <select id="usuario-rol" class="form-input">
+                <option value="vendedora">Vendedora</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <button type="submit" class="btn-primary" style="width: auto; padding: 0.65rem 1.25rem;">➕ Asignar</button>
+          </form>
+        </section>
+
+        <section class="admin-card">
+          <h2>👤 Usuarios con acceso</h2>
+          <p style="color: var(--color-text-light); margin-bottom: 1rem; font-size: 0.9rem;">
+            Un rol <strong>Vendedora</strong> solo ve la pestaña "Gestión Pedidos" (de solo lectura); un rol <strong>Admin</strong> ve y edita todo el panel.
+          </p>
+          <div id="usuarios-lista">
+            <!-- Filas generadas vía JS -->
+          </div>
+        </section>
+      </div>
+
     </main>
   </div>
 
@@ -870,26 +912,26 @@
     </div>
   </div>
 
-  <!-- MODAL: CAMBIAR PIN -->
+  <!-- MODAL: CAMBIAR CONTRASEÑA -->
   <div id="modal-change-pin" class="modal-overlay">
     <div class="modal-content" style="max-width: 400px;">
       <div class="modal-header">
-        <h3 class="modal-title">🔑 Cambiar PIN de Acceso</h3>
+        <h3 class="modal-title">🔑 Cambiar Contraseña</h3>
         <button id="btn-close-change-pin" class="btn-close">×</button>
       </div>
       <form id="form-change-pin" class="modal-body-scroll" style="display: flex; flex-direction: column; gap: 0.75rem;">
         <div class="form-group">
-          <label class="form-label" for="current-pin">PIN Actual *</label>
+          <label class="form-label" for="current-pin">Contraseña Actual *</label>
           <input type="password" id="current-pin" class="form-input" required>
         </div>
         <div class="form-group">
-          <label class="form-label" for="new-pin">PIN Nuevo (mínimo 4 caracteres) *</label>
-          <input type="password" id="new-pin" class="form-input" minlength="4" required>
+          <label class="form-label" for="new-pin">Contraseña Nueva (mínimo 6 caracteres) *</label>
+          <input type="password" id="new-pin" class="form-input" minlength="6" required>
         </div>
         <div id="change-pin-error-msg" style="color: #dc2626; font-size: 0.85rem; display: none;"></div>
         <div class="modal-footer-sticky">
           <button type="submit" class="btn-primary" style="justify-content: center; width: 100%;">
-            Guardar Nuevo PIN
+            Guardar Nueva Contraseña
           </button>
         </div>
       </form>

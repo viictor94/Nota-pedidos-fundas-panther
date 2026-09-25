@@ -18,6 +18,9 @@ let productoSeleccionadoId = null;
 let vendedoresAdmin = []; // Para el desplegable de "Vendedor/a" en Pedidos y la pestaña de Vendedores.
 let pedidosAdmin = []; // Cache local para no repedir a Supabase en cada acción de la tabla/reporte.
 let categoriasAdmin = []; // Activas e inactivas, para la pestaña Categorías y los selects de producto.
+let usuariosAdmin = []; // Perfiles (nombre/rol) de quienes tienen acceso al panel.
+let rolActual = null; // "admin" o "vendedora": del usuario logueado, define qué pestañas ve.
+let usuarioActualId = null; // Id del usuario logueado (para no dejarlo autoeliminarse/autodegradarse).
 
 // ---------------------------------------------------------------------
 // Inicialización
@@ -113,6 +116,8 @@ function wireEventosEstaticos() {
   document.getElementById("form-add-categoria").addEventListener("submit", manejarSubmitAgregarCategoria);
   document.getElementById("edit-product-category").addEventListener("change", manejarCambioCategoriaProducto);
 
+  document.getElementById("form-add-usuario").addEventListener("submit", manejarSubmitAgregarUsuario);
+
   document.getElementById("btn-toggle-completados").addEventListener("click", function () {
     const wrap = document.getElementById("orders-completados-wrap");
     const btn = document.getElementById("btn-toggle-completados");
@@ -144,14 +149,15 @@ function configurarTabsAdmin() {
 }
 
 // ---------------------------------------------------------------------
-// Acceso por PIN
+// Acceso (login individual: email + contraseña de Supabase Auth)
 // ---------------------------------------------------------------------
 
 async function manejarSubmitPin(evento) {
   evento.preventDefault();
 
-  const pin = document.getElementById("input-pin").value;
-  const resultado = await iniciarSesionAdmin(pin);
+  const email = document.getElementById("input-email").value.trim();
+  const password = document.getElementById("input-pin").value;
+  const resultado = await iniciarSesionAdmin(email, password);
 
   if (!resultado.ok) {
     document.getElementById("pin-error-msg").style.display = "block";
@@ -166,6 +172,7 @@ async function mostrarPanelAdmin() {
   document.getElementById("lock-screen").style.display = "none";
   document.getElementById("admin-main-content").style.display = "block";
   await cargarDatosAdmin();
+  await aplicarPermisosPorRol();
 }
 
 async function manejarSubmitCambiarPin(evento) {
@@ -175,7 +182,7 @@ async function manejarSubmitCambiarPin(evento) {
   const pinNuevo = document.getElementById("new-pin").value;
   const mensajeError = document.getElementById("change-pin-error-msg");
 
-  const resultado = await cambiarPinAdmin(pinActual, pinNuevo);
+  const resultado = await cambiarPasswordAdmin(pinActual, pinNuevo);
 
   if (!resultado.ok) {
     mensajeError.textContent = resultado.error;
@@ -186,7 +193,7 @@ async function manejarSubmitCambiarPin(evento) {
   mensajeError.style.display = "none";
   document.getElementById("form-change-pin").reset();
   ocultarModal(document.getElementById("modal-change-pin"));
-  mostrarToast("PIN actualizado correctamente.", "success");
+  mostrarToast("Contraseña actualizada correctamente.", "success");
 }
 
 // ---------------------------------------------------------------------
@@ -1952,6 +1959,258 @@ function poblarSelectCategoria(select, categorias) {
     opcion.textContent = categoria.nombre;
     select.appendChild(opcion);
   });
+}
+
+// ---------------------------------------------------------------------
+// Permisos por rol: una "vendedora" solo ve la pestaña Gestión Pedidos
+// (de solo lectura: las políticas RLS de supabase/schema.sql bloquean
+// cualquier escritura suya sobre pedidos/productos/etc.). El rol "admin"
+// no tiene restricciones de UI.
+// ---------------------------------------------------------------------
+
+const TABS_SOLO_ADMIN = ["tab-stock", "tab-vendedores", "tab-categorias", "tab-usuarios"];
+
+async function aplicarPermisosPorRol() {
+  try {
+    const usuario = await obtenerUsuarioActual();
+    usuarioActualId = usuario ? usuario.id : null;
+    const perfil = await obtenerPerfilActual();
+    // Sin perfil asignado (por ejemplo, el admin histórico recién
+    // migrado antes de correr el seed de supabase/schema.sql) se trata
+    // como admin, para no dejarlo afuera del panel por accidente.
+    rolActual = perfil ? perfil.rol : "admin";
+  } catch (error) {
+    rolActual = "admin";
+  }
+
+  if (rolActual === "admin") {
+    await cargarUsuariosAdmin();
+    return;
+  }
+
+  document.querySelectorAll(".admin-tab-btn").forEach(function (boton) {
+    if (TABS_SOLO_ADMIN.includes(boton.dataset.tab)) {
+      boton.style.display = "none";
+    }
+  });
+
+  const botonPedidos = document.querySelector('.admin-tab-btn[data-tab="tab-pedidos"]');
+  if (botonPedidos) {
+    botonPedidos.click();
+  }
+}
+
+// ---------------------------------------------------------------------
+// Gestión de usuarios del panel (pestaña "Usuarios", solo rol admin)
+// ---------------------------------------------------------------------
+
+async function cargarUsuariosAdmin() {
+  try {
+    usuariosAdmin = await obtenerPerfilesAdmin();
+    renderUsuariosLista();
+  } catch (error) {
+    // Si falla (por ejemplo, RLS bloqueando a alguien sin perfil todavía)
+    // no debe romper el resto del panel: la pestaña de Usuarios
+    // simplemente queda vacía.
+  }
+}
+
+function renderUsuariosLista() {
+  const contenedor = document.getElementById("usuarios-lista");
+  while (contenedor.firstChild) {
+    contenedor.removeChild(contenedor.firstChild);
+  }
+
+  if (usuariosAdmin.length === 0) {
+    const vacio = document.createElement("p");
+    vacio.style.color = "var(--color-text-light)";
+    vacio.style.fontSize = "0.9rem";
+    vacio.textContent = "Todavía no hay usuarios asignados.";
+    contenedor.appendChild(vacio);
+    return;
+  }
+
+  usuariosAdmin.forEach(function (usuario) {
+    contenedor.appendChild(crearFilaUsuario(usuario));
+  });
+}
+
+function crearFilaUsuario(usuario) {
+  const fila = document.createElement("div");
+  fila.className = "vendedor-row";
+  renderUsuarioRowVista(fila, usuario);
+  return fila;
+}
+
+function renderUsuarioRowVista(fila, usuario) {
+  while (fila.firstChild) {
+    fila.removeChild(fila.firstChild);
+  }
+
+  const esUsuarioActual = usuario.id === usuarioActualId;
+
+  const info = document.createElement("div");
+  info.className = "vendedor-row-info";
+
+  const nombre = document.createElement("span");
+  nombre.className = "vendedor-row-name";
+  nombre.textContent = usuario.nombre + (esUsuarioActual ? " (vos)" : "");
+  info.appendChild(nombre);
+
+  const detalle = document.createElement("span");
+  detalle.className = "vendedor-row-zeus";
+  detalle.textContent = (usuario.rol === "admin" ? "Admin" : "Vendedora") + (usuario.activo ? "" : " · Inactivo");
+  info.appendChild(detalle);
+
+  fila.appendChild(info);
+
+  const acciones = document.createElement("div");
+  acciones.className = "vendedor-row-actions";
+
+  const btnEditar = document.createElement("button");
+  btnEditar.type = "button";
+  btnEditar.className = "btn-secondary";
+  btnEditar.style.width = "auto";
+  btnEditar.style.padding = "0.3rem 0.65rem";
+  btnEditar.style.fontSize = "0.78rem";
+  btnEditar.textContent = "✏️ Editar";
+  btnEditar.addEventListener("click", function () {
+    renderUsuarioRowEdicion(fila, usuario);
+  });
+  acciones.appendChild(btnEditar);
+
+  // No se deja desactivar/eliminar el propio acceso desde acá: sin esto,
+  // un admin podría quedarse afuera del panel sin forma de revertirlo
+  // más que entrando directo a Supabase.
+  if (!esUsuarioActual) {
+    const btnToggleActivo = document.createElement("button");
+    btnToggleActivo.type = "button";
+    btnToggleActivo.className = "btn-secondary";
+    btnToggleActivo.style.width = "auto";
+    btnToggleActivo.style.padding = "0.3rem 0.65rem";
+    btnToggleActivo.style.fontSize = "0.78rem";
+    btnToggleActivo.textContent = usuario.activo ? "Desactivar" : "Activar";
+    btnToggleActivo.addEventListener("click", async function () {
+      try {
+        await actualizarPerfilAdmin(usuario.id, { activo: !usuario.activo });
+        await cargarUsuariosAdmin();
+        mostrarToast(usuario.activo ? "Usuario desactivado." : "Usuario activado.", "success");
+      } catch (error) {
+        mostrarToast("No se pudo actualizar el usuario.", "error");
+      }
+    });
+    acciones.appendChild(btnToggleActivo);
+
+    const btnEliminar = document.createElement("button");
+    btnEliminar.type = "button";
+    btnEliminar.className = "btn-delete-var";
+    btnEliminar.textContent = "🗑️";
+    btnEliminar.addEventListener("click", function () {
+      confirmarAccionDoble(btnEliminar, "¿Confirmar?", async function () {
+        try {
+          await eliminarPerfilAdmin(usuario.id);
+          await cargarUsuariosAdmin();
+          mostrarToast("Usuario eliminado del panel (la cuenta de Supabase sigue existiendo).", "success");
+        } catch (error) {
+          mostrarToast("No se pudo eliminar el usuario.", "error");
+        }
+      });
+    });
+    acciones.appendChild(btnEliminar);
+  }
+
+  fila.appendChild(acciones);
+}
+
+function renderUsuarioRowEdicion(fila, usuario) {
+  while (fila.firstChild) {
+    fila.removeChild(fila.firstChild);
+  }
+
+  const campos = document.createElement("div");
+  campos.className = "vendedor-row-fields";
+
+  const inputNombre = document.createElement("input");
+  inputNombre.type = "text";
+  inputNombre.className = "form-input";
+  inputNombre.value = usuario.nombre;
+  campos.appendChild(inputNombre);
+
+  const selectRol = document.createElement("select");
+  selectRol.className = "form-input";
+  ["vendedora", "admin"].forEach(function (rol) {
+    const opcion = document.createElement("option");
+    opcion.value = rol;
+    opcion.textContent = rol === "admin" ? "Admin" : "Vendedora";
+    opcion.selected = usuario.rol === rol;
+    selectRol.appendChild(opcion);
+  });
+  // No se deja auto-degradar: si un admin se saca a sí mismo el rol de
+  // admin y era el único, nadie podría volver a entrar al tab Usuarios.
+  selectRol.disabled = usuario.id === usuarioActualId;
+  campos.appendChild(selectRol);
+
+  fila.appendChild(campos);
+
+  const acciones = document.createElement("div");
+  acciones.className = "vendedor-row-actions";
+
+  const btnGuardar = document.createElement("button");
+  btnGuardar.type = "button";
+  btnGuardar.className = "btn-primary";
+  btnGuardar.style.width = "auto";
+  btnGuardar.style.padding = "0.3rem 0.65rem";
+  btnGuardar.style.fontSize = "0.78rem";
+  btnGuardar.textContent = "💾 Guardar";
+  btnGuardar.addEventListener("click", async function () {
+    const nombreNuevo = inputNombre.value.trim();
+    if (!nombreNuevo) return;
+
+    try {
+      await actualizarPerfilAdmin(usuario.id, { nombre: nombreNuevo, rol: selectRol.value });
+      await cargarUsuariosAdmin();
+      mostrarToast("Usuario actualizado.", "success");
+    } catch (error) {
+      mostrarToast("No se pudo actualizar el usuario.", "error");
+    }
+  });
+  acciones.appendChild(btnGuardar);
+
+  const btnCancelar = document.createElement("button");
+  btnCancelar.type = "button";
+  btnCancelar.className = "btn-secondary";
+  btnCancelar.style.width = "auto";
+  btnCancelar.style.padding = "0.3rem 0.65rem";
+  btnCancelar.style.fontSize = "0.78rem";
+  btnCancelar.textContent = "Cancelar";
+  btnCancelar.addEventListener("click", function () {
+    renderUsuarioRowVista(fila, usuario);
+  });
+  acciones.appendChild(btnCancelar);
+
+  fila.appendChild(acciones);
+}
+
+async function manejarSubmitAgregarUsuario(evento) {
+  evento.preventDefault();
+
+  const id = document.getElementById("usuario-id").value.trim();
+  const nombre = document.getElementById("usuario-nombre").value.trim();
+  const rol = document.getElementById("usuario-rol").value;
+
+  try {
+    await crearPerfilAdmin(id, nombre, rol);
+    document.getElementById("form-add-usuario").reset();
+    await cargarUsuariosAdmin();
+    mostrarToast("Usuario asignado correctamente.", "success");
+  } catch (error) {
+    mostrarToast(
+      error && error.code === "23505"
+        ? "Ese usuario ya tiene un perfil asignado."
+        : "No se pudo asignar el usuario (verificá que el ID sea correcto).",
+      "error"
+    );
+  }
 }
 
 // ---------------------------------------------------------------------
