@@ -29,6 +29,13 @@
   --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.15);
 
   --transition: all 0.2s ease;
+
+  /* Tipografía: par "Corporate Trust" (Lexend para títulos, Source Sans 3
+     para el resto), cargada por Google Fonts en el <head> de cada
+     página. El stack del sistema queda como respaldo si la fuente
+     todavía no cargó o falla la red. */
+  --font-heading: "Lexend", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-body: "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 /* ---------- Reset básico ---------- */
@@ -44,9 +51,14 @@ html, body {
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
 }
 
 img {
