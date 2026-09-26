@@ -686,7 +686,7 @@ a {
 .product-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
   transition: var(--transition);
@@ -699,17 +699,19 @@ a {
   transform: translateY(-2px);
 }
 
-/* Tarjeta de un producto marcado "en_promo" desde el admin: borde y
-   sombra cálidos para que resalte a simple vista en la grilla. */
+/* Tarjeta de un producto marcado "en_promo" desde el admin: antes tenía
+   un borde+anillo grueso (border-color + box-shadow duplicado). Se
+   cambia por una franja superior fina, más elegante, que alcanza para
+   diferenciarla sin "gritar" (el cartel 🔥 PROMO sobre la foto ya hace
+   la mayor parte de esa señal). */
 .product-card-promo {
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 1.5px #f59e0b, var(--shadow-sm);
+  border-top: 3px solid #f59e0b;
 }
 
 .product-card-image-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 1 / 0.85;
   background: #f3f4f6;
   overflow: hidden;
 }
@@ -755,18 +757,25 @@ a {
 }
 
 .product-card-body {
-  padding: 0.75rem;
+  padding: 0.55rem 0.6rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.2rem;
   flex: 1;
 }
 
 .product-card-name {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--color-text);
   margin: 0;
+  line-height: 1.25;
+  /* Corta en 2 líneas: sin esto, un nombre largo estira la tarjeta y
+     rompe la alineación de precios entre tarjetas vecinas de la grilla. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Bloque de precio de la tarjeta: centrado (label, tachado y precio
@@ -774,10 +783,11 @@ a {
 .product-card-price-block {
   text-align: center;
   margin-top: auto;
+  padding-top: 0.15rem;
 }
 
 .product-card-price {
-  font-size: 1.1rem;
+  font-size: 0.98rem;
   font-weight: 800;
   color: var(--color-primary);
   margin: 0;
@@ -785,7 +795,7 @@ a {
 
 .product-card-price-label {
   display: block;
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   font-weight: 500;
   color: var(--color-text-light);
 }
@@ -793,7 +803,7 @@ a {
 /* Precio "de antes" tachado (ver calcularPrecioTachado en app.js). */
 .product-card-price-old {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-text-light);
   text-decoration: line-through;
