@@ -82,9 +82,8 @@ function wireEventosEstaticos() {
     }
   });
 
-  document.getElementById("search-product").addEventListener("input", function (evento) {
-    renderListaProductos(evento.target.value);
-  });
+  document.getElementById("search-product").addEventListener("input", renderListaProductos);
+  document.getElementById("filtro-categoria-stock").addEventListener("change", renderListaProductos);
 
   document.getElementById("btn-open-create-product").addEventListener("click", function () {
     mostrarModal(document.getElementById("modal-create-product"));
@@ -108,6 +107,12 @@ function wireEventosEstaticos() {
   document.getElementById("photo-file-input").addEventListener("change", manejarCambioFoto);
 
   document.getElementById("btn-delete-product").addEventListener("click", manejarClickEliminarProducto);
+  document.getElementById("selected-product-title").addEventListener("blur", manejarGuardarNombreProducto);
+  document.getElementById("selected-product-title").addEventListener("keydown", function (evento) {
+    if (evento.key === "Enter") {
+      evento.target.blur();
+    }
+  });
   document.getElementById("checkbox-en-promo").addEventListener("change", manejarCambioEnPromo);
   document.getElementById("checkbox-es-nuevo").addEventListener("change", manejarCambioEsNuevo);
   document.getElementById("btn-aplicar-tachado-todas").addEventListener("click", manejarClickAplicarTachadoTodas);
@@ -234,7 +239,7 @@ async function cargarDatosAdmin() {
     vendedoresAdmin = vendedores;
     pedidosAdmin = pedidos;
     categoriasAdmin = categorias;
-    renderListaProductos("");
+    renderListaProductos();
     renderTablasPedidos(pedidosAdmin);
     renderReporteVendedores(pedidosAdmin);
     renderVendedoresAgrupados();
@@ -327,7 +332,7 @@ function procesarArchivoExcel(archivo) {
       }, 5000);
 
       productosAdmin = await obtenerCatalogoCompleto();
-      renderListaProductos(document.getElementById("search-product").value);
+      renderListaProductos();
       if (productoSeleccionadoId) {
         renderDetalleProducto(productoSeleccionadoId);
       }
@@ -1217,15 +1222,22 @@ function descargarHistorialVendedor(vendedor, pedidosVendedor, desdeTexto, hasta
 // Sección 2: Gestor de productos, variantes y fotos
 // ---------------------------------------------------------------------
 
-function renderListaProductos(filtroTexto) {
+// Lee el texto del buscador y la categoría elegida directo del DOM (en
+// vez de recibirlos por parámetro) para no tener que actualizar cada
+// lugar del archivo que dispara un refresco de esta lista.
+function renderListaProductos() {
   const sidebar = document.getElementById("product-list-sidebar");
   while (sidebar.firstChild) {
     sidebar.removeChild(sidebar.firstChild);
   }
 
-  const filtro = (filtroTexto || "").toLowerCase();
+  const filtro = (document.getElementById("search-product").value || "").toLowerCase();
+  const categoriaId = document.getElementById("filtro-categoria-stock").value || null;
+
   const productosFiltrados = productosAdmin.filter(function (producto) {
-    return producto.nombre.toLowerCase().includes(filtro);
+    const coincideTexto = producto.nombre.toLowerCase().includes(filtro);
+    const coincideCategoria = !categoriaId || producto.categoria_id === categoriaId;
+    return coincideTexto && coincideCategoria;
   });
 
   productosFiltrados.forEach(function (producto) {
@@ -1248,7 +1260,7 @@ function crearItemListaProducto(producto) {
 
   item.addEventListener("click", function () {
     productoSeleccionadoId = producto.id;
-    renderListaProductos(document.getElementById("search-product").value);
+    renderListaProductos();
     renderDetalleProducto(producto.id);
   });
 
@@ -1262,7 +1274,7 @@ function renderDetalleProducto(productoId) {
   if (!producto) return;
 
   document.getElementById("product-detail-box").style.display = "block";
-  document.getElementById("selected-product-title").textContent = producto.nombre;
+  document.getElementById("selected-product-title").value = producto.nombre;
   document.getElementById("selected-product-img").src =
     producto.imagen_url || "assets/img/placeholder-producto.svg";
   document.getElementById("checkbox-en-promo").checked = Boolean(producto.en_promo);
@@ -1279,6 +1291,36 @@ function renderDetalleProducto(productoId) {
   });
 }
 
+// Guarda el nombre del producto al salir del campo (blur) o con Enter.
+// Si lo dejaron vacío o no cambió nada, no pega a Supabase.
+async function manejarGuardarNombreProducto(evento) {
+  if (!productoSeleccionadoId) return;
+
+  const producto = productosAdmin.find(function (p) {
+    return p.id === productoSeleccionadoId;
+  });
+  if (!producto) return;
+
+  const nombreNuevo = evento.target.value.trim();
+  if (!nombreNuevo) {
+    evento.target.value = producto.nombre;
+    return;
+  }
+  if (nombreNuevo === producto.nombre) {
+    return;
+  }
+
+  try {
+    await actualizarProducto(productoSeleccionadoId, { nombre: nombreNuevo });
+    producto.nombre = nombreNuevo;
+    renderListaProductos();
+    mostrarToast("Nombre del producto actualizado.", "success");
+  } catch (error) {
+    evento.target.value = producto.nombre;
+    mostrarToast("No se pudo actualizar el nombre del producto.", "error");
+  }
+}
+
 // Tilda/destilda un cartel (Promoción o Nuevo Ingreso) del producto
 // seleccionado. "campo" es la columna a actualizar en Supabase.
 async function manejarCambioCartel(evento, campo, mensajeOn, mensajeOff) {
@@ -1288,7 +1330,7 @@ async function manejarCambioCartel(evento, campo, mensajeOn, mensajeOff) {
   try {
     await actualizarProducto(productoSeleccionadoId, { [campo]: marcado });
     productosAdmin = await obtenerCatalogoCompleto();
-    renderListaProductos(document.getElementById("search-product").value);
+    renderListaProductos();
     mostrarToast(marcado ? mensajeOn : mensajeOff, "success");
   } catch (error) {
     evento.target.checked = !marcado;
@@ -1311,7 +1353,7 @@ async function manejarCambioCategoriaProducto(evento) {
   try {
     await actualizarProducto(productoSeleccionadoId, { categoria_id: categoriaId });
     productosAdmin = await obtenerCatalogoCompleto();
-    renderListaProductos(document.getElementById("search-product").value);
+    renderListaProductos();
     mostrarToast("Categoría del producto actualizada.", "success");
   } catch (error) {
     mostrarToast("No se pudo actualizar la categoría del producto.", "error");
@@ -1546,7 +1588,7 @@ async function manejarClickEliminarProducto() {
       productoSeleccionadoId = null;
       document.getElementById("product-detail-box").style.display = "none";
       productosAdmin = await obtenerCatalogoCompleto();
-      renderListaProductos(document.getElementById("search-product").value);
+      renderListaProductos();
       mostrarToast("Producto eliminado.", "success");
     } catch (error) {
       mostrarToast("No se pudo eliminar el producto.", "error");
@@ -1601,7 +1643,7 @@ async function manejarSubmitCrearProducto(evento) {
     ocultarModal(document.getElementById("modal-create-product"));
 
     productosAdmin = await obtenerCatalogoCompleto();
-    renderListaProductos(document.getElementById("search-product").value);
+    renderListaProductos();
     productoSeleccionadoId = producto.id;
     renderDetalleProducto(producto.id);
 
@@ -1646,7 +1688,7 @@ async function manejarCambioFoto(evento) {
 
     productosAdmin = await obtenerCatalogoCompleto();
     renderDetalleProducto(productoSeleccionadoId);
-    renderListaProductos(document.getElementById("search-product").value);
+    renderListaProductos();
     mostrarToast("Foto actualizada.", "success");
   } catch (error) {
     mostrarToast("No se pudo subir la foto.", "error");
@@ -2230,6 +2272,7 @@ function renderSelectsCategorias() {
     })
   );
   poblarSelectCategoria(document.getElementById("edit-product-category"), categoriasAdmin);
+  poblarSelectCategoria(document.getElementById("filtro-categoria-stock"), categoriasAdmin);
 }
 
 function poblarSelectCategoria(select, categorias) {

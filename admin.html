@@ -77,6 +77,34 @@
       align-items: center;
       gap: 0.5rem;
     }
+    /* Título del producto seleccionado (Stock y Precios): se edita ahí
+       mismo en vez de tener un botón "Editar" aparte. Sin borde propio
+       para que a simple vista siga pareciendo un título; el borde
+       punteado aparece recién al pasar el mouse/tocar, como pista de
+       que es editable, y sólido al enfocarlo. Guarda al salir del campo
+       (blur) o con Enter. */
+    .editable-title-input {
+      flex: 1;
+      min-width: 180px;
+      margin: 0;
+      padding: 0.2rem 0.4rem;
+      border: 1.5px dashed transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--color-text);
+      font-family: inherit;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+    .editable-title-input:hover {
+      border-color: var(--color-border);
+    }
+    .editable-title-input:focus {
+      outline: none;
+      border-style: solid;
+      border-color: var(--color-primary);
+      background: var(--color-surface);
+    }
     .dropzone {
       border: 2px dashed var(--color-primary);
       border-radius: var(--radius-lg);
@@ -631,10 +659,13 @@
         <div class="product-manager-grid">
           <!-- Barra lateral de productos -->
           <div>
-            <div class="site-search-wrap" style="margin-bottom: 0.75rem;">
+            <div class="site-search-wrap" style="margin-bottom: 0.5rem;">
               <span class="site-search-icon" aria-hidden="true">🔍</span>
               <input type="search" id="search-product" class="site-search-input" placeholder="Buscar modelo de funda...">
             </div>
+            <select id="filtro-categoria-stock" class="form-input" style="margin-bottom: 0.75rem;">
+              <option value="">Todas las categorías</option>
+            </select>
             <div id="product-list-sidebar" class="product-list-sidebar">
               <!-- Lista de productos generada con JS -->
             </div>
@@ -644,7 +675,8 @@
           <div id="product-detail-box" style="display: none;">
             <div class="admin-card" style="margin-bottom: 1rem; background: #fff;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
-                <h3 id="selected-product-title" style="margin: 0; color: var(--color-text); font-size: 1.2rem;">Nombre del Producto</h3>
+                <input type="text" id="selected-product-title" class="editable-title-input" value="Nombre del Producto" aria-label="Nombre del producto">
+                <p style="width: 100%; margin: -0.4rem 0 0; font-size: 0.7rem; color: var(--color-text-light);">Tocá el nombre para editarlo. Se guarda al salir del campo o con Enter.</p>
                 <button type="button" id="btn-delete-product" class="btn-secondary" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.8rem; color: #dc2626; border-color: #fca5a5;">
                   🗑️ Eliminar este Producto
                 </button>
