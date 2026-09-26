@@ -75,7 +75,11 @@
            productos marcados como en_promo, y no se está buscando). -->
       <div id="carousel-promos-wrap" class="carousel-wrap" style="display: none;">
         <h2 class="carousel-title">🔥 Promociones</h2>
-        <div id="carousel-promos" class="destacados-scroll"></div>
+        <div class="destacados-scroll-wrap">
+          <button type="button" id="btn-promos-izq" class="carousel-nav-btn carousel-nav-izq" aria-label="Ver promociones anteriores">‹</button>
+          <div id="carousel-promos" class="destacados-scroll"></div>
+          <button type="button" id="btn-promos-der" class="carousel-nav-btn carousel-nav-der" aria-label="Ver más promociones">›</button>
+        </div>
       </div>
 
       <div class="catalog-toolbar">

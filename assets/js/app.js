@@ -218,6 +218,7 @@ function wireEventosEstaticos() {
   configurarScrollInfinito();
   configurarBuscador();
   configurarToggleVista();
+  configurarNavegacionCarrusel();
 
   document.getElementById("btn-close-modal").addEventListener("click", cerrarModalVariantes);
   document.getElementById("btn-modal-listo").addEventListener("click", cerrarModalVariantes);
@@ -638,6 +639,28 @@ function seguirCargandoSiSentinelaVisible() {
   }
 }
 
+// Flechas ‹ › de la fila de Promociones: el scroll táctil/con mouse ya
+// funciona solo (arrastre nativo), pero en desktop sin mouse con rueda
+// horizontal no siempre es obvio que hay más para el costado.
+function configurarNavegacionCarrusel() {
+  const track = document.getElementById("carousel-promos");
+  const btnIzq = document.getElementById("btn-promos-izq");
+  const btnDer = document.getElementById("btn-promos-der");
+  if (!track || !btnIzq || !btnDer) return;
+
+  // Dos tarjetas y su gap (ver .destacado-card/.destacados-scroll en
+  // styles.css): un salto que se siente intencional sin ser tan grande
+  // como para perder de vista qué había antes.
+  const salto = 150 * 2 + 14 * 2;
+
+  btnIzq.addEventListener("click", function () {
+    track.scrollBy({ left: -salto, behavior: "smooth" });
+  });
+  btnDer.addEventListener("click", function () {
+    track.scrollBy({ left: salto, behavior: "smooth" });
+  });
+}
+
 // "Promos del Día" es una fila estática con scroll horizontal (sin
 // animación 3D ni swipe a mano): el navegador ya resuelve el scroll
 // táctil/mouse por su cuenta.
@@ -740,18 +763,23 @@ function construirTarjetaBase(producto) {
   labelDesde.textContent = "Desde";
   bloquePrecio.appendChild(labelDesde);
 
+  const filaPrecio = document.createElement("div");
+  filaPrecio.className = "product-card-price-row";
+
   const precioTachado = calcularPrecioTachado(varianteMasBarata, producto);
   if (precioTachado !== null) {
     const viejo = document.createElement("span");
     viejo.className = "product-card-price-old";
     viejo.textContent = formatearMoneda(precioTachado);
-    bloquePrecio.appendChild(viejo);
+    filaPrecio.appendChild(viejo);
   }
 
   const precio = document.createElement("p");
   precio.className = "product-card-price";
   precio.textContent = formatearMoneda(precioMasBarato);
-  bloquePrecio.appendChild(precio);
+  filaPrecio.appendChild(precio);
+
+  bloquePrecio.appendChild(filaPrecio);
 
   cuerpo.appendChild(bloquePrecio);
   tarjeta.appendChild(cuerpo);
