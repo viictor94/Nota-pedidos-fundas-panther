@@ -612,6 +612,7 @@
         <button type="button" class="admin-tab-btn" data-tab="tab-pedidos">🧾 Gestión Pedidos</button>
         <button type="button" class="admin-tab-btn" data-tab="tab-vendedores">🧑‍💼 Gestión Vendedores</button>
         <button type="button" class="admin-tab-btn" data-tab="tab-categorias">🏷️ Categorías</button>
+        <button type="button" class="admin-tab-btn" data-tab="tab-marcas">🏭 Marcas</button>
         <button type="button" class="admin-tab-btn" data-tab="tab-usuarios">👤 Usuarios</button>
       </nav>
 
@@ -663,8 +664,11 @@
               <span class="site-search-icon" aria-hidden="true">🔍</span>
               <input type="search" id="search-product" class="site-search-input" placeholder="Buscar modelo de funda...">
             </div>
-            <select id="filtro-categoria-stock" class="form-input" style="margin-bottom: 0.75rem;">
+            <select id="filtro-categoria-stock" class="form-input" style="margin-bottom: 0.5rem;">
               <option value="">Todas las categorías</option>
+            </select>
+            <select id="filtro-marca-stock" class="form-input" style="margin-bottom: 0.75rem;">
+              <option value="">Todas las marcas</option>
             </select>
             <div id="product-list-sidebar" class="product-list-sidebar">
               <!-- Lista de productos generada con JS -->
@@ -693,11 +697,19 @@
                 </label>
               </div>
 
-              <div class="form-group" style="max-width: 320px;">
-                <label class="form-label" for="edit-product-category">Categoría</label>
-                <select id="edit-product-category" class="form-input">
-                  <option value="">Sin categoría</option>
-                </select>
+              <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
+                <div class="form-group" style="max-width: 320px; flex: 1; min-width: 200px;">
+                  <label class="form-label" for="edit-product-category">Categoría</label>
+                  <select id="edit-product-category" class="form-input">
+                    <option value="">Sin categoría</option>
+                  </select>
+                </div>
+                <div class="form-group" style="max-width: 320px; flex: 1; min-width: 200px;">
+                  <label class="form-label" for="edit-product-marca">Marca</label>
+                  <select id="edit-product-marca" class="form-input">
+                    <option value="">Sin marca</option>
+                  </select>
+                </div>
               </div>
 
               <div class="photo-edit-box">
@@ -748,6 +760,7 @@
                 <table class="table-variants">
                   <thead>
                     <tr>
+                      <th>Foto</th>
                       <th>SKU</th>
                       <th>Modelo de Teléfono</th>
                       <th>Precio Actual</th>
@@ -905,6 +918,30 @@
         </section>
       </div>
 
+      <!-- PESTAÑA: MARCAS -->
+      <div id="tab-marcas" class="admin-tab-panel">
+        <section class="admin-card">
+          <h2>➕ Agregar Marca</h2>
+          <p style="color: var(--color-text-light); margin-bottom: 0.75rem; font-size: 0.9rem;">
+            El fabricante del accesorio (no el celular al que le queda), ej. "Original", "Soul", "Kikigo". Es opcional: no todas las categorías necesitan marca.
+          </p>
+          <form id="form-add-marca" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+            <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+              <label class="form-label" for="marca-nombre">Nombre *</label>
+              <input type="text" id="marca-nombre" class="form-input" required>
+            </div>
+            <button type="submit" class="btn-primary" style="width: auto; padding: 0.65rem 1.25rem;">➕ Agregar</button>
+          </form>
+        </section>
+
+        <section class="admin-card">
+          <h2>🏭 Marcas existentes</h2>
+          <div id="marcas-lista">
+            <!-- Filas generadas vía JS -->
+          </div>
+        </section>
+      </div>
+
       <!-- PESTAÑA: USUARIOS (solo visible para rol admin) -->
       <div id="tab-usuarios" class="admin-tab-panel">
         <section class="admin-card">
@@ -977,11 +1014,19 @@
           <input type="text" id="new-product-name" class="form-input" placeholder="Ej: TPU KIKIGO TITANIUM GLOW" required>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="new-product-category">Categoría</label>
-          <select id="new-product-category" class="form-input">
-            <option value="">Sin categoría</option>
-          </select>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
+          <div class="form-group" style="flex: 1; min-width: 180px;">
+            <label class="form-label" for="new-product-category">Categoría</label>
+            <select id="new-product-category" class="form-input">
+              <option value="">Sin categoría</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex: 1; min-width: 180px;">
+            <label class="form-label" for="new-product-marca">Marca</label>
+            <select id="new-product-marca" class="form-input">
+              <option value="">Sin marca</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-group">

@@ -17,7 +17,9 @@
 async function obtenerCatalogo() {
   const { data, error } = await supabaseClient
     .from("productos")
-    .select("id, nombre, imagen_url, orden, en_promo, es_nuevo, categoria_id, categorias(id, nombre), variantes(id, sku, modelo, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
+    .select(
+      "id, nombre, imagen_url, orden, en_promo, es_nuevo, categoria_id, categorias(id, nombre), marca_id, marcas(id, nombre), variantes(id, sku, modelo, imagen_url, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)"
+    )
     .eq("activo", true)
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
@@ -45,7 +47,9 @@ async function obtenerCatalogo() {
 async function obtenerCatalogoCompleto() {
   const { data, error } = await supabaseClient
     .from("productos")
-    .select("id, nombre, imagen_url, activo, orden, en_promo, es_nuevo, categoria_id, categorias(id, nombre), variantes(id, sku, modelo, descripcion_completa, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)")
+    .select(
+      "id, nombre, imagen_url, activo, orden, en_promo, es_nuevo, categoria_id, categorias(id, nombre), marca_id, marcas(id, nombre), variantes(id, sku, modelo, descripcion_completa, imagen_url, precio_actual, precio_anterior, stock_estado, stock_cantidad, activo)"
+    )
     .order("orden", { ascending: true })
     .order("nombre", { ascending: true });
 
@@ -110,6 +114,60 @@ async function actualizarCategoria(id, campos) {
 
 async function eliminarCategoria(id) {
   const { error } = await supabaseClient.from("categorias").delete().eq("id", id);
+  if (error) {
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Marcas de producto (fabricante del accesorio: Original, Soul,
+// Kikigo, etc. — independiente de la categoría)
+// ---------------------------------------------------------------------
+
+async function obtenerMarcas() {
+  const { data, error } = await supabaseClient
+    .from("marcas")
+    .select("id, nombre, orden, activo")
+    .eq("activo", true)
+    .order("orden", { ascending: true })
+    .order("nombre", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+async function obtenerMarcasCompleto() {
+  const { data, error } = await supabaseClient
+    .from("marcas")
+    .select("id, nombre, orden, activo")
+    .order("orden", { ascending: true })
+    .order("nombre", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+async function crearMarca(nombre) {
+  const { data, error } = await supabaseClient.from("marcas").insert({ nombre: nombre }).select().single();
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+async function actualizarMarca(id, campos) {
+  const { error } = await supabaseClient.from("marcas").update(campos).eq("id", id);
+  if (error) {
+    throw error;
+  }
+}
+
+async function eliminarMarca(id) {
+  const { error } = await supabaseClient.from("marcas").delete().eq("id", id);
   if (error) {
     throw error;
   }
@@ -451,10 +509,10 @@ async function actualizarConfig(campos) {
   }
 }
 
-async function crearProducto(nombre, imagenUrl, categoriaId) {
+async function crearProducto(nombre, imagenUrl, categoriaId, marcaId) {
   const { data, error } = await supabaseClient
     .from("productos")
-    .insert({ nombre: nombre, imagen_url: imagenUrl || null, categoria_id: categoriaId || null })
+    .insert({ nombre: nombre, imagen_url: imagenUrl || null, categoria_id: categoriaId || null, marca_id: marcaId || null })
     .select()
     .single();
 
@@ -535,6 +593,26 @@ async function actualizarPreciosStockMasivo(filas) {
 async function subirFotoProducto(productoId, archivo) {
   const extension = archivo.name.split(".").pop();
   const ruta = "productos/" + productoId + "." + extension;
+
+  const { error: errorSubida } = await supabaseClient.storage
+    .from("assets-publicos")
+    .upload(ruta, archivo, { upsert: true });
+
+  if (errorSubida) {
+    throw errorSubida;
+  }
+
+  const { data } = supabaseClient.storage.from("assets-publicos").getPublicUrl(ruta);
+  return data.publicUrl;
+}
+
+// Igual que subirFotoProducto, pero bajo variantes/{varianteId}.{ext}.
+// Pensada para productos cuyas variantes son muy distintas entre sí
+// (ej. "Teclados" 60%/100%, membrana/mecánico), donde una sola foto de
+// producto no alcanza para mostrar cada modelo.
+async function subirFotoVariante(varianteId, archivo) {
+  const extension = archivo.name.split(".").pop();
+  const ruta = "variantes/" + varianteId + "." + extension;
 
   const { error: errorSubida } = await supabaseClient.storage
     .from("assets-publicos")

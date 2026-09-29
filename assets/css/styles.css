@@ -461,12 +461,23 @@ a {
   cursor: pointer;
 }
 
-/* ---------- Barra de herramientas del catálogo (ahora solo el toggle
-   de vista: las categorías pasaron a su propia sección arriba) ---------- */
+/* ---------- Barra de herramientas del catálogo: filtro de marca a la
+   izquierda (independiente de las categorías, ver app.js) y el toggle
+   de vista a la derecha ---------- */
 .catalog-toolbar {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
   margin-bottom: 0.75rem;
+}
+
+.filtro-marca-select {
+  flex: 0 1 190px;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
 }
 
 /* ---------- Tarjetas grandes de categoría ----------
@@ -1444,10 +1455,27 @@ a {
   text-align: right;
 }
 
+.variant-item-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.variant-item-image {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  background: #f3f4f6;
+  border-radius: var(--radius-sm);
+}
+
 .variant-item-info {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  min-width: 0;
 }
 
 .variant-item-model {

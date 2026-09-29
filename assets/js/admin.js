@@ -18,6 +18,7 @@ let productoSeleccionadoId = null;
 let vendedoresAdmin = []; // Para el desplegable de "Vendedor/a" en Pedidos y la pestaña de Vendedores.
 let pedidosAdmin = []; // Cache local para no repedir a Supabase en cada acción de la tabla/reporte.
 let categoriasAdmin = []; // Activas e inactivas, para la pestaña Categorías y los selects de producto.
+let marcasAdmin = []; // Activas e inactivas, para la pestaña Marcas y los selects de producto.
 let usuariosAdmin = []; // Perfiles (nombre/rol) de quienes tienen acceso al panel.
 let rolActual = null; // "admin", "editor" o "vendedora": del usuario logueado, define qué pestañas ve.
 let usuarioActualId = null; // Id del usuario logueado (para no dejarlo autoeliminarse/autodegradarse).
@@ -84,6 +85,7 @@ function wireEventosEstaticos() {
 
   document.getElementById("search-product").addEventListener("input", renderListaProductos);
   document.getElementById("filtro-categoria-stock").addEventListener("change", renderListaProductos);
+  document.getElementById("filtro-marca-stock").addEventListener("change", renderListaProductos);
 
   document.getElementById("btn-open-create-product").addEventListener("click", function () {
     mostrarModal(document.getElementById("modal-create-product"));
@@ -122,6 +124,9 @@ function wireEventosEstaticos() {
 
   document.getElementById("form-add-categoria").addEventListener("submit", manejarSubmitAgregarCategoria);
   document.getElementById("edit-product-category").addEventListener("change", manejarCambioCategoriaProducto);
+
+  document.getElementById("form-add-marca").addEventListener("submit", manejarSubmitAgregarMarca);
+  document.getElementById("edit-product-marca").addEventListener("change", manejarCambioMarcaProducto);
 
   document.getElementById("form-add-usuario").addEventListener("submit", manejarSubmitAgregarUsuario);
 
@@ -227,24 +232,28 @@ async function manejarClickCerrarSesion() {
 
 async function cargarDatosAdmin() {
   try {
-    const [config, catalogo, pedidos, vendedores, categorias] = await Promise.all([
+    const [config, catalogo, pedidos, vendedores, categorias, marcas] = await Promise.all([
       obtenerConfig(),
       obtenerCatalogoCompleto(),
       obtenerPedidos(),
       obtenerVendedores(),
       obtenerCategoriasCompleto(),
+      obtenerMarcasCompleto(),
     ]);
     document.getElementById("config-whatsapp").value = config.whatsapp_vendedor || "";
     productosAdmin = catalogo;
     vendedoresAdmin = vendedores;
     pedidosAdmin = pedidos;
     categoriasAdmin = categorias;
+    marcasAdmin = marcas;
     renderListaProductos();
     renderTablasPedidos(pedidosAdmin);
     renderReporteVendedores(pedidosAdmin);
     renderVendedoresAgrupados();
     renderCategoriasLista();
     renderSelectsCategorias();
+    renderMarcasLista();
+    renderSelectsMarcas();
   } catch (error) {
     mostrarToast("No se pudieron cargar los datos del panel.", "error");
   }
@@ -1233,11 +1242,13 @@ function renderListaProductos() {
 
   const filtro = (document.getElementById("search-product").value || "").toLowerCase();
   const categoriaId = document.getElementById("filtro-categoria-stock").value || null;
+  const marcaId = document.getElementById("filtro-marca-stock").value || null;
 
   const productosFiltrados = productosAdmin.filter(function (producto) {
     const coincideTexto = producto.nombre.toLowerCase().includes(filtro);
     const coincideCategoria = !categoriaId || producto.categoria_id === categoriaId;
-    return coincideTexto && coincideCategoria;
+    const coincideMarca = !marcaId || producto.marca_id === marcaId;
+    return coincideTexto && coincideCategoria && coincideMarca;
   });
 
   productosFiltrados.forEach(function (producto) {
@@ -1280,6 +1291,7 @@ function renderDetalleProducto(productoId) {
   document.getElementById("checkbox-en-promo").checked = Boolean(producto.en_promo);
   document.getElementById("checkbox-es-nuevo").checked = Boolean(producto.es_nuevo);
   document.getElementById("edit-product-category").value = producto.categoria_id || "";
+  document.getElementById("edit-product-marca").value = producto.marca_id || "";
 
   const cuerpoTabla = document.getElementById("variants-table-body");
   while (cuerpoTabla.firstChild) {
@@ -1360,8 +1372,71 @@ async function manejarCambioCategoriaProducto(evento) {
   }
 }
 
+async function manejarCambioMarcaProducto(evento) {
+  if (!productoSeleccionadoId) return;
+
+  const marcaId = evento.target.value || null;
+  try {
+    await actualizarProducto(productoSeleccionadoId, { marca_id: marcaId });
+    productosAdmin = await obtenerCatalogoCompleto();
+    renderListaProductos();
+    mostrarToast("Marca del producto actualizada.", "success");
+  } catch (error) {
+    mostrarToast("No se pudo actualizar la marca del producto.", "error");
+  }
+}
+
 function crearFilaTablaVariante(variante) {
   const fila = document.createElement("tr");
+
+  // Foto propia de la variante (opcional): pensada para productos como
+  // "Teclados" donde las variantes son muy distintas visualmente entre
+  // sí. Si no tiene, el catálogo cliente usa la foto del producto.
+  const celdaFoto = document.createElement("td");
+  const miniatura = document.createElement("img");
+  miniatura.src = variante.imagen_url || "assets/img/placeholder-producto.svg";
+  miniatura.alt = "";
+  miniatura.style.width = "36px";
+  miniatura.style.height = "36px";
+  miniatura.style.objectFit = "contain";
+  miniatura.style.background = "#f3f4f6";
+  miniatura.style.borderRadius = "6px";
+  miniatura.style.display = "block";
+  miniatura.style.marginBottom = "0.25rem";
+  celdaFoto.appendChild(miniatura);
+
+  const inputFotoVariante = document.createElement("input");
+  inputFotoVariante.type = "file";
+  inputFotoVariante.accept = "image/*";
+  inputFotoVariante.style.display = "none";
+  inputFotoVariante.addEventListener("change", async function () {
+    const archivo = inputFotoVariante.files[0];
+    if (!archivo) return;
+    try {
+      const url = await subirFotoVariante(variante.id, archivo);
+      await actualizarVariante(variante.id, { imagen_url: url });
+      variante.imagen_url = url;
+      miniatura.src = url;
+      mostrarToast("Foto de la variante actualizada.", "success");
+    } catch (error) {
+      mostrarToast("No se pudo subir la foto de la variante.", "error");
+    }
+  });
+  celdaFoto.appendChild(inputFotoVariante);
+
+  const btnFotoVariante = document.createElement("button");
+  btnFotoVariante.type = "button";
+  btnFotoVariante.className = "btn-secondary";
+  btnFotoVariante.style.width = "auto";
+  btnFotoVariante.style.padding = "0.25rem 0.5rem";
+  btnFotoVariante.style.fontSize = "0.72rem";
+  btnFotoVariante.textContent = "📷";
+  btnFotoVariante.title = "Cambiar foto de esta variante";
+  btnFotoVariante.addEventListener("click", function () {
+    inputFotoVariante.click();
+  });
+  celdaFoto.appendChild(btnFotoVariante);
+  fila.appendChild(celdaFoto);
 
   const celdaSku = document.createElement("td");
   celdaSku.textContent = variante.sku;
@@ -1623,12 +1698,13 @@ async function manejarSubmitCrearProducto(evento) {
 
   const nombre = document.getElementById("new-product-name").value.trim();
   const categoriaId = document.getElementById("new-product-category").value || null;
+  const marcaId = document.getElementById("new-product-marca").value || null;
   const archivoFoto = document.getElementById("new-product-photo").files[0];
   const textoVariantes = document.getElementById("new-product-variants-text").value;
   const variantes = parsearListaVariantes(textoVariantes);
 
   try {
-    const producto = await crearProducto(nombre, null, categoriaId);
+    const producto = await crearProducto(nombre, null, categoriaId, marcaId);
 
     if (archivoFoto) {
       const url = await subirFotoProducto(producto.id, archivoFoto);
@@ -2289,6 +2365,268 @@ function poblarSelectCategoria(select, categorias) {
 }
 
 // ---------------------------------------------------------------------
+// Gestión de marcas (mismo patrón que Categorías, pero sin ícono/imagen:
+// es una lista plana de nombres, ordenable con los botones ↑/↓)
+// ---------------------------------------------------------------------
+
+function renderMarcasLista() {
+  const contenedor = document.getElementById("marcas-lista");
+  while (contenedor.firstChild) {
+    contenedor.removeChild(contenedor.firstChild);
+  }
+
+  if (marcasAdmin.length === 0) {
+    const vacio = document.createElement("p");
+    vacio.style.color = "var(--color-text-light)";
+    vacio.style.fontSize = "0.9rem";
+    vacio.textContent = "Todavía no hay marcas cargadas.";
+    contenedor.appendChild(vacio);
+    return;
+  }
+
+  const ordenadas = marcasAdmin.slice().sort(function (a, b) {
+    return a.orden - b.orden;
+  });
+
+  ordenadas.forEach(function (marca, indice) {
+    contenedor.appendChild(crearFilaMarca(marca, indice, ordenadas.length));
+  });
+}
+
+function crearFilaMarca(marca, indice, total) {
+  const fila = document.createElement("div");
+  fila.className = "vendedor-row";
+  renderMarcaRowVista(fila, marca, indice, total);
+  return fila;
+}
+
+function renderMarcaRowVista(fila, marca, indice, total) {
+  while (fila.firstChild) {
+    fila.removeChild(fila.firstChild);
+  }
+
+  const info = document.createElement("div");
+  info.className = "vendedor-row-info";
+
+  const nombre = document.createElement("span");
+  nombre.className = "vendedor-row-name";
+  nombre.textContent = marca.nombre;
+  info.appendChild(nombre);
+
+  const estado = document.createElement("span");
+  estado.className = "vendedor-row-zeus";
+  estado.textContent = marca.activo ? "Activa" : "Inactiva";
+  info.appendChild(estado);
+
+  fila.appendChild(info);
+
+  const acciones = document.createElement("div");
+  acciones.className = "vendedor-row-actions";
+
+  const btnSubir = document.createElement("button");
+  btnSubir.type = "button";
+  btnSubir.className = "btn-secondary";
+  btnSubir.style.width = "auto";
+  btnSubir.style.padding = "0.3rem 0.55rem";
+  btnSubir.style.fontSize = "0.78rem";
+  btnSubir.textContent = "↑";
+  btnSubir.disabled = indice === 0;
+  btnSubir.addEventListener("click", function () {
+    moverMarca(marca, -1);
+  });
+  acciones.appendChild(btnSubir);
+
+  const btnBajar = document.createElement("button");
+  btnBajar.type = "button";
+  btnBajar.className = "btn-secondary";
+  btnBajar.style.width = "auto";
+  btnBajar.style.padding = "0.3rem 0.55rem";
+  btnBajar.style.fontSize = "0.78rem";
+  btnBajar.textContent = "↓";
+  btnBajar.disabled = indice === total - 1;
+  btnBajar.addEventListener("click", function () {
+    moverMarca(marca, 1);
+  });
+  acciones.appendChild(btnBajar);
+
+  const btnToggleActivo = document.createElement("button");
+  btnToggleActivo.type = "button";
+  btnToggleActivo.className = "btn-secondary";
+  btnToggleActivo.style.width = "auto";
+  btnToggleActivo.style.padding = "0.3rem 0.65rem";
+  btnToggleActivo.style.fontSize = "0.78rem";
+  btnToggleActivo.textContent = marca.activo ? "Desactivar" : "Activar";
+  btnToggleActivo.addEventListener("click", async function () {
+    try {
+      await actualizarMarca(marca.id, { activo: !marca.activo });
+      marcasAdmin = await obtenerMarcasCompleto();
+      renderMarcasLista();
+      renderSelectsMarcas();
+      mostrarToast(marca.activo ? "Marca desactivada." : "Marca activada.", "success");
+    } catch (error) {
+      mostrarToast("No se pudo actualizar la marca.", "error");
+    }
+  });
+  acciones.appendChild(btnToggleActivo);
+
+  const btnEditar = document.createElement("button");
+  btnEditar.type = "button";
+  btnEditar.className = "btn-secondary";
+  btnEditar.style.width = "auto";
+  btnEditar.style.padding = "0.3rem 0.65rem";
+  btnEditar.style.fontSize = "0.78rem";
+  btnEditar.textContent = "✏️ Editar";
+  btnEditar.addEventListener("click", function () {
+    renderMarcaRowEdicion(fila, marca, indice, total);
+  });
+  acciones.appendChild(btnEditar);
+
+  const btnEliminar = document.createElement("button");
+  btnEliminar.type = "button";
+  btnEliminar.className = "btn-delete-var";
+  btnEliminar.textContent = "🗑️";
+  btnEliminar.addEventListener("click", function () {
+    // El FK productos.marca_id es "on delete set null": borrar acá sin
+    // este chequeo dejaría productos con marca "invisible" sin aviso.
+    const productosConMarca = productosAdmin.filter(function (producto) {
+      return producto.marca_id === marca.id;
+    }).length;
+    if (productosConMarca > 0) {
+      mostrarToast("No se puede eliminar: hay " + productosConMarca + " producto(s) con esta marca.", "error");
+      return;
+    }
+    confirmarAccionDoble(btnEliminar, "¿Confirmar?", async function () {
+      try {
+        await eliminarMarca(marca.id);
+        marcasAdmin = await obtenerMarcasCompleto();
+        renderMarcasLista();
+        renderSelectsMarcas();
+        mostrarToast("Marca eliminada.", "success");
+      } catch (error) {
+        mostrarToast("No se pudo eliminar la marca.", "error");
+      }
+    });
+  });
+  acciones.appendChild(btnEliminar);
+
+  fila.appendChild(acciones);
+}
+
+function renderMarcaRowEdicion(fila, marca, indice, total) {
+  while (fila.firstChild) {
+    fila.removeChild(fila.firstChild);
+  }
+
+  const campos = document.createElement("div");
+  campos.className = "vendedor-row-fields";
+
+  const inputNombre = document.createElement("input");
+  inputNombre.type = "text";
+  inputNombre.className = "form-input";
+  inputNombre.value = marca.nombre;
+  campos.appendChild(inputNombre);
+
+  fila.appendChild(campos);
+
+  const acciones = document.createElement("div");
+  acciones.className = "vendedor-row-actions";
+
+  const btnGuardar = document.createElement("button");
+  btnGuardar.type = "button";
+  btnGuardar.className = "btn-primary";
+  btnGuardar.style.width = "auto";
+  btnGuardar.style.padding = "0.3rem 0.65rem";
+  btnGuardar.style.fontSize = "0.78rem";
+  btnGuardar.textContent = "💾 Guardar";
+  btnGuardar.addEventListener("click", async function () {
+    const nombreNuevo = inputNombre.value.trim();
+    if (!nombreNuevo) return;
+
+    try {
+      await actualizarMarca(marca.id, { nombre: nombreNuevo });
+      marcasAdmin = await obtenerMarcasCompleto();
+      renderMarcasLista();
+      renderSelectsMarcas();
+      mostrarToast("Marca actualizada.", "success");
+    } catch (error) {
+      mostrarToast(
+        error && error.code === "23505" ? "Ya existe una marca con ese nombre." : "No se pudo actualizar la marca.",
+        "error"
+      );
+    }
+  });
+  acciones.appendChild(btnGuardar);
+
+  const btnCancelar = document.createElement("button");
+  btnCancelar.type = "button";
+  btnCancelar.className = "btn-secondary";
+  btnCancelar.style.width = "auto";
+  btnCancelar.style.padding = "0.3rem 0.65rem";
+  btnCancelar.style.fontSize = "0.78rem";
+  btnCancelar.textContent = "Cancelar";
+  btnCancelar.addEventListener("click", function () {
+    renderMarcaRowVista(fila, marca, indice, total);
+  });
+  acciones.appendChild(btnCancelar);
+
+  fila.appendChild(acciones);
+}
+
+async function moverMarca(marca, delta) {
+  const ordenadas = marcasAdmin.slice().sort(function (a, b) {
+    return a.orden - b.orden;
+  });
+  const indice = ordenadas.findIndex(function (m) {
+    return m.id === marca.id;
+  });
+  const indiceVecino = indice + delta;
+  if (indiceVecino < 0 || indiceVecino >= ordenadas.length) return;
+
+  const vecino = ordenadas[indiceVecino];
+  try {
+    await Promise.all([
+      actualizarMarca(marca.id, { orden: vecino.orden }),
+      actualizarMarca(vecino.id, { orden: marca.orden }),
+    ]);
+    marcasAdmin = await obtenerMarcasCompleto();
+    renderMarcasLista();
+  } catch (error) {
+    mostrarToast("No se pudo reordenar la marca.", "error");
+  }
+}
+
+async function manejarSubmitAgregarMarca(evento) {
+  evento.preventDefault();
+
+  const nombre = document.getElementById("marca-nombre").value.trim();
+  if (!nombre) return;
+
+  try {
+    await crearMarca(nombre);
+    document.getElementById("form-add-marca").reset();
+    marcasAdmin = await obtenerMarcasCompleto();
+    renderMarcasLista();
+    renderSelectsMarcas();
+    mostrarToast("Marca agregada.", "success");
+  } catch (error) {
+    mostrarToast(error && error.code === "23505" ? "Ya existe una marca con ese nombre." : "No se pudo agregar la marca.", "error");
+  }
+}
+
+// El de alta solo ofrece marcas activas; el de edición y el filtro
+// incluyen también las inactivas (mismo criterio que Categorías).
+function renderSelectsMarcas() {
+  poblarSelectCategoria(
+    document.getElementById("new-product-marca"),
+    marcasAdmin.filter(function (m) {
+      return m.activo;
+    })
+  );
+  poblarSelectCategoria(document.getElementById("edit-product-marca"), marcasAdmin);
+  poblarSelectCategoria(document.getElementById("filtro-marca-stock"), marcasAdmin);
+}
+
+// ---------------------------------------------------------------------
 // Permisos por rol: cada rol ve únicamente las pestañas que le
 // corresponden (las políticas RLS de supabase/schema.sql bloquean
 // además cualquier escritura fuera de su alcance, aunque alguien
@@ -2300,8 +2638,8 @@ function poblarSelectCategoria(select, categorias) {
 // ---------------------------------------------------------------------
 
 const TABS_POR_ROL = {
-  admin: ["tab-stock", "tab-pedidos", "tab-vendedores", "tab-categorias", "tab-usuarios"],
-  editor: ["tab-stock", "tab-vendedores", "tab-categorias"],
+  admin: ["tab-stock", "tab-pedidos", "tab-vendedores", "tab-categorias", "tab-marcas", "tab-usuarios"],
+  editor: ["tab-stock", "tab-vendedores", "tab-categorias", "tab-marcas"],
   vendedora: ["tab-pedidos"],
 };
 

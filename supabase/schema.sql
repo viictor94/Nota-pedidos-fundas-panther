@@ -64,6 +64,13 @@ create table if not exists public.variantes (
 
 create index if not exists variantes_producto_id_idx on public.variantes(producto_id);
 
+-- Foto propia de la variante (nullable, a propósito): pensada para
+-- productos como "Teclados" donde un mismo producto agrupa variantes
+-- muy distintas entre sí (60%/100%, membrana/mecánico). Si la variante
+-- no tiene foto propia, el catálogo cliente usa la del producto (ver
+-- app.js, modal de variantes).
+alter table public.variantes add column if not exists imagen_url text;
+
 -- Categorías de producto (plano, sin jerarquías): cada producto
 -- pertenece a UNA sola categoría. Antes de que existiera esta tabla,
 -- todo el catálogo era fundas de celular; se crea "Fundas" como
@@ -106,6 +113,33 @@ where not exists (select 1 from public.categorias where lower(trim(nombre)) = 'f
 update public.productos
 set categoria_id = (select id from public.categorias where lower(trim(nombre)) = 'fundas' limit 1)
 where categoria_id is null;
+
+-- Marcas de producto: dimensión aparte de "categoría" (fabricante del
+-- accesorio, ej. un auricular puede ser "Original" -de la marca del
+-- celular-, "Soul", "Kikigo", etc.), no una jerarquía de categorías.
+-- Un producto tiene a lo sumo una marca (nullable: no todas las
+-- categorías usan marca, ej. Fundas).
+create table if not exists public.marcas (
+  id          uuid primary key default gen_random_uuid(),
+  nombre      text not null,
+  orden       integer not null default 0,
+  activo      boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+drop index if exists public.marcas_nombre_unq;
+create unique index marcas_nombre_unq on public.marcas (lower(trim(nombre)));
+
+alter table public.productos add column if not exists marca_id uuid references public.marcas(id) on delete set null;
+create index if not exists productos_marca_id_idx on public.productos(marca_id);
+
+-- Seed idempotente con las marcas que ya se trabajan hoy; el admin
+-- puede agregar/editar/desactivar más desde el panel (pestaña Marcas).
+insert into public.marcas (nombre, orden)
+select v.nombre, v.orden
+from (values ('Original', 0), ('Soul', 1), ('Kikigo', 2), ('Foneng', 3), ('Aitech', 4), ('Motorola', 5), ('Samsung', 6)) as v(nombre, orden)
+where not exists (select 1 from public.marcas where lower(trim(marcas.nombre)) = lower(v.nombre));
 
 -- Fila única de configuración general de la app.
 create table if not exists public.app_config (
@@ -283,6 +317,10 @@ create trigger trg_variantes_updated before update on public.variantes
 
 drop trigger if exists trg_categorias_updated on public.categorias;
 create trigger trg_categorias_updated before update on public.categorias
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_marcas_updated on public.marcas;
+create trigger trg_marcas_updated before update on public.marcas
   for each row execute function public.set_updated_at();
 
 drop trigger if exists trg_config_updated on public.app_config;
@@ -830,6 +868,7 @@ on conflict (id) do nothing;
 alter table public.productos enable row level security;
 alter table public.variantes enable row level security;
 alter table public.categorias enable row level security;
+alter table public.marcas enable row level security;
 alter table public.app_config enable row level security;
 alter table public.pedidos enable row level security;
 alter table public.vendedores enable row level security;
@@ -858,6 +897,13 @@ create policy "categorias_lectura_publica" on public.categorias
   for select using (true);
 drop policy if exists "categorias_escritura_admin" on public.categorias;
 create policy "categorias_escritura_admin" on public.categorias
+  for all using (public.puede_editar_catalogo()) with check (public.puede_editar_catalogo());
+
+drop policy if exists "marcas_lectura_publica" on public.marcas;
+create policy "marcas_lectura_publica" on public.marcas
+  for select using (true);
+drop policy if exists "marcas_escritura_admin" on public.marcas;
+create policy "marcas_escritura_admin" on public.marcas
   for all using (public.puede_editar_catalogo()) with check (public.puede_editar_catalogo());
 
 drop policy if exists "config_lectura_publica" on public.app_config;

@@ -25,6 +25,8 @@ let vendedoresDisponibles = []; // Para el desplegable opcional "Vendedor/a pref
 let categoriasDisponibles = []; // Categorías activas, para los chips de filtro.
 let categoriaActivaId = null; // null = chip "Todos"
 
+let marcaActivaId = null; // null = "Todas las marcas". Filtro independiente de categoría (ver obtenerCatalogoFiltrado).
+
 let terminoBusqueda = ""; // Texto del buscador (ya en minúsculas), filtra por nombre de producto o SKU de variante.
 let terminoBusquedaOriginal = ""; // Mismo texto tal cual lo tipeó el cliente, solo para mostrarlo en "Resultados para...".
 let vistaActual = "grid"; // "grid" (tarjetas) o "lista" (tabla), elegido con el toggle de la barra de herramientas.
@@ -48,12 +50,18 @@ document.addEventListener("DOMContentLoaded", async function () {
   wireEventosEstaticos();
 
   try {
-    const [catalogo, config, categorias] = await Promise.all([obtenerCatalogo(), obtenerConfig(), obtenerCategorias()]);
+    const [catalogo, config, categorias, marcas] = await Promise.all([
+      obtenerCatalogo(),
+      obtenerConfig(),
+      obtenerCategorias(),
+      obtenerMarcas(),
+    ]);
     catalogoCompleto = ordenarDestacadosPrimero(catalogo);
     configuracionApp = config;
     categoriasDisponibles = categorias;
     actualizarTextoUltimaActualizacion(config.catalogo_actualizado_en);
     renderTarjetasCategoria();
+    renderOpcionesMarca(marcas);
     renderCatalogo();
     // En pantallas anchas (PC, grilla de 5 columnas) la primera tanda de
     // productos puede no llegar a llenar el alto de la ventana: hay que
@@ -219,6 +227,7 @@ function wireEventosEstaticos() {
   configurarBuscador();
   configurarToggleVista();
   configurarNavegacionCarrusel();
+  configurarFiltroMarca();
 
   document.getElementById("btn-close-modal").addEventListener("click", cerrarModalVariantes);
   document.getElementById("btn-modal-listo").addEventListener("click", cerrarModalVariantes);
@@ -308,14 +317,48 @@ function crearTarjetaCategoria(id, nombre, icono, imagenUrl) {
   return tarjeta;
 }
 
+// Combo desplegable de marca (fabricante del accesorio: Original, Soul,
+// Kikigo, etc.), independiente de las categorías/chips. Se combina con
+// categoría y búsqueda como filtro AND (ver obtenerCatalogoFiltrado).
+function renderOpcionesMarca(marcas) {
+  const select = document.getElementById("filtro-marca");
+  if (!select) return;
+
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+  marcas.forEach(function (marca) {
+    const opcion = document.createElement("option");
+    opcion.value = marca.id;
+    opcion.textContent = marca.nombre;
+    select.appendChild(opcion);
+  });
+}
+
+function configurarFiltroMarca() {
+  document.getElementById("filtro-marca").addEventListener("change", function (evento) {
+    marcaActivaId = evento.target.value || null;
+    productosVisibles = PRODUCTOS_POR_PAGINA;
+    renderCatalogo();
+    seguirCargandoSiSentinelaVisible();
+  });
+}
+
 // Catálogo completo si el chip activo es "Todos", o solo los productos
-// de la categoría elegida.
+// de la categoría elegida (y, si hay una marca elegida, solo los de esa
+// marca también: son dos filtros independientes que se combinan).
 function obtenerCatalogoFiltrado() {
   let resultado = catalogoCompleto;
 
   if (categoriaActivaId !== null) {
     resultado = resultado.filter(function (producto) {
       return producto.categoria_id === categoriaActivaId;
+    });
+  }
+
+  if (marcaActivaId !== null) {
+    resultado = resultado.filter(function (producto) {
+      return producto.marca_id === marcaActivaId;
     });
   }
 
@@ -825,6 +868,24 @@ function crearFilaVariante(producto, variante) {
   const filaSuperior = document.createElement("div");
   filaSuperior.className = "variant-item-top";
 
+  // Envoltorio de foto+info (en vez de agregar la foto suelta a
+  // filaSuperior) para no romper el "justify-content: space-between"
+  // que separa este bloque del control de cantidad a la derecha.
+  const principal = document.createElement("div");
+  principal.className = "variant-item-main";
+
+  // Foto propia de la variante: solo se muestra si el admin cargó una
+  // (ej. "Teclados" 60%/100%, membrana/mecánico); si no, la foto grande
+  // de arriba del modal (la del producto) ya alcanza, no hace falta
+  // repetirla en cada fila.
+  if (variante.imagen_url) {
+    const miniatura = document.createElement("img");
+    miniatura.className = "variant-item-image";
+    miniatura.src = variante.imagen_url;
+    miniatura.alt = "";
+    principal.appendChild(miniatura);
+  }
+
   const info = document.createElement("div");
   info.className = "variant-item-info";
 
@@ -856,7 +917,8 @@ function crearFilaVariante(producto, variante) {
   stockBadge.textContent = variante.stock_estado;
   info.appendChild(stockBadge);
 
-  filaSuperior.appendChild(info);
+  principal.appendChild(info);
+  filaSuperior.appendChild(principal);
 
   const sinStock = variante.stock_estado === "SIN STOCK";
 
