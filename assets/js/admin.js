@@ -2282,6 +2282,20 @@ function renderCategoriaRowEdicion(fila, categoria, indice, total) {
   fila.appendChild(acciones);
 }
 
+// Siguiente valor de "orden" libre para un alta nueva (categoría o
+// marca): sin esto, toda fila nueva insertaba con el "orden" por
+// defecto de la base (0), y como los botones ↑/↓ solo intercambian
+// "orden" entre vecinas, dos filas empatadas en 0 no se podían
+// reordenar entre sí (el intercambio no cambiaba nada visible).
+function calcularProximoOrden(lista) {
+  if (lista.length === 0) return 0;
+  return (
+    lista.reduce(function (max, item) {
+      return Math.max(max, item.orden);
+    }, 0) + 1
+  );
+}
+
 // Intercambia el campo "orden" de una categoría con su vecina (arriba o
 // abajo en la lista ya ordenada) en vez de drag-and-drop: alcanza para
 // la cantidad de categorías que va a tener este catálogo.
@@ -2317,7 +2331,7 @@ async function manejarSubmitAgregarCategoria(evento) {
   if (!nombre) return;
 
   try {
-    const categoria = await crearCategoria(nombre, icono);
+    const categoria = await crearCategoria(nombre, icono, calcularProximoOrden(categoriasAdmin));
     if (archivoImagen) {
       const url = await subirImagenCategoria(categoria.id, archivoImagen);
       await actualizarCategoria(categoria.id, { imagen_url: url });
@@ -2602,7 +2616,7 @@ async function manejarSubmitAgregarMarca(evento) {
   if (!nombre) return;
 
   try {
-    await crearMarca(nombre);
+    await crearMarca(nombre, calcularProximoOrden(marcasAdmin));
     document.getElementById("form-add-marca").reset();
     marcasAdmin = await obtenerMarcasCompleto();
     renderMarcasLista();

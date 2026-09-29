@@ -141,6 +141,32 @@ select v.nombre, v.orden
 from (values ('Original', 0), ('Soul', 1), ('Kikigo', 2), ('Foneng', 3), ('Aitech', 4), ('Motorola', 5), ('Samsung', 6)) as v(nombre, orden)
 where not exists (select 1 from public.marcas where lower(trim(marcas.nombre)) = lower(v.nombre));
 
+-- Corrección única de datos: hasta ahora, toda alta de categoría (y de
+-- marca, si el admin agregó alguna antes de este cambio) insertaba con
+-- "orden" fijo en 0, así que dos filas nuevas quedaban empatadas y los
+-- botones ↑/↓ del panel no hacían nada visible (intercambiaban 0 por
+-- 0). De acá en más cada alta nueva ya inserta con el siguiente orden
+-- libre (ver admin.js, calcularProximoOrden); esto solo reordena
+-- secuencialmente lo que ya estaba cargado, respetando el orden actual
+-- (orden, nombre) como desempate.
+with categorias_ordenadas as (
+  select id, row_number() over (order by orden, nombre) - 1 as nuevo_orden
+  from public.categorias
+)
+update public.categorias c
+set orden = o.nuevo_orden
+from categorias_ordenadas o
+where c.id = o.id and c.orden <> o.nuevo_orden;
+
+with marcas_ordenadas as (
+  select id, row_number() over (order by orden, nombre) - 1 as nuevo_orden
+  from public.marcas
+)
+update public.marcas m
+set orden = o.nuevo_orden
+from marcas_ordenadas o
+where m.id = o.id and m.orden <> o.nuevo_orden;
+
 -- Fila única de configuración general de la app.
 create table if not exists public.app_config (
   id                 smallint primary key default 1 check (id = 1),

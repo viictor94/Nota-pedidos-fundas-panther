@@ -92,10 +92,10 @@ async function obtenerCategoriasCompleto() {
   return data;
 }
 
-async function crearCategoria(nombre, icono) {
+async function crearCategoria(nombre, icono, orden) {
   const { data, error } = await supabaseClient
     .from("categorias")
-    .insert({ nombre: nombre, icono: icono || null })
+    .insert({ nombre: nombre, icono: icono || null, orden: orden || 0 })
     .select()
     .single();
 
@@ -151,8 +151,8 @@ async function obtenerMarcasCompleto() {
   return data;
 }
 
-async function crearMarca(nombre) {
-  const { data, error } = await supabaseClient.from("marcas").insert({ nombre: nombre }).select().single();
+async function crearMarca(nombre, orden) {
+  const { data, error } = await supabaseClient.from("marcas").insert({ nombre: nombre, orden: orden || 0 }).select().single();
   if (error) {
     throw error;
   }
