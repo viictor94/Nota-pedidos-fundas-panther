@@ -2061,6 +2061,14 @@ function renderCategoriaRowVista(fila, categoria, indice, total) {
     fila.removeChild(fila.firstChild);
   }
 
+  // Se calcula acá arriba (no solo al lado del botón eliminar) para
+  // poder mostrarlo también como texto en la fila: un tooltip (title)
+  // no se ve en celular, así que sin este texto visible no había forma
+  // de saber por qué el tacho de basura estaba deshabilitado.
+  const productosEnCategoria = productosAdmin.filter(function (producto) {
+    return producto.categoria_id === categoria.id;
+  }).length;
+
   if (categoria.imagen_url) {
     const miniatura = document.createElement("img");
     miniatura.src = categoria.imagen_url;
@@ -2084,7 +2092,8 @@ function renderCategoriaRowVista(fila, categoria, indice, total) {
 
   const estado = document.createElement("span");
   estado.className = "vendedor-row-zeus";
-  estado.textContent = categoria.activo ? "Activa" : "Inactiva";
+  estado.textContent =
+    (categoria.activo ? "Activa" : "Inactiva") + (productosEnCategoria > 0 ? " · " + productosEnCategoria + " producto(s)" : "");
   info.appendChild(estado);
 
   fila.appendChild(info);
@@ -2191,15 +2200,8 @@ function renderCategoriaRowVista(fila, categoria, indice, total) {
 
   // El FK productos.categoria_id es "on delete set null": el borrado en
   // sí no fallaría, pero dejaría productos huérfanos (fuera de todos
-  // los chips salvo "Todos") sin ningún aviso. En vez de bloquearlo
-  // recién al hacer click (un cartel que desaparece solo a los 4
-  // segundos es fácil no ver, y da la impresión de que el botón "no
-  // hace nada"), el botón queda deshabilitado de entrada con un
-  // tooltip que explica por qué.
-  const productosEnCategoria = productosAdmin.filter(function (producto) {
-    return producto.categoria_id === categoria.id;
-  }).length;
-
+  // los chips salvo "Todos") sin ningún aviso. "productosEnCategoria"
+  // ya se calculó arriba (también se muestra como texto en la fila).
   if (productosEnCategoria > 0) {
     btnEliminar.disabled = true;
     btnEliminar.title = "No se puede eliminar: hay " + productosEnCategoria + " producto(s) en esta categoría.";
@@ -2429,6 +2431,14 @@ function renderMarcaRowVista(fila, marca, indice, total) {
     fila.removeChild(fila.firstChild);
   }
 
+  // Se calcula acá arriba (no solo al lado del botón eliminar) para
+  // poder mostrarlo también como texto en la fila: un tooltip (title)
+  // no se ve en celular, así que sin este texto visible no había forma
+  // de saber por qué el tacho de basura estaba deshabilitado.
+  const productosConMarca = productosAdmin.filter(function (producto) {
+    return producto.marca_id === marca.id;
+  }).length;
+
   const info = document.createElement("div");
   info.className = "vendedor-row-info";
 
@@ -2439,7 +2449,8 @@ function renderMarcaRowVista(fila, marca, indice, total) {
 
   const estado = document.createElement("span");
   estado.className = "vendedor-row-zeus";
-  estado.textContent = marca.activo ? "Activa" : "Inactiva";
+  estado.textContent =
+    (marca.activo ? "Activa" : "Inactiva") + (productosConMarca > 0 ? " · " + productosConMarca + " producto(s)" : "");
   info.appendChild(estado);
 
   fila.appendChild(info);
@@ -2512,14 +2523,8 @@ function renderMarcaRowVista(fila, marca, indice, total) {
 
   // El FK productos.marca_id es "on delete set null": el borrado en sí
   // no fallaría, pero dejaría productos con marca "invisible" sin
-  // aviso. En vez de bloquearlo recién al hacer click (un cartel que
-  // desaparece solo a los 4 segundos es fácil no ver, y da la impresión
-  // de que el botón "no hace nada"), el botón queda deshabilitado de
-  // entrada con un tooltip que explica por qué.
-  const productosConMarca = productosAdmin.filter(function (producto) {
-    return producto.marca_id === marca.id;
-  }).length;
-
+  // aviso. "productosConMarca" ya se calculó arriba (también se muestra
+  // como texto en la fila).
   if (productosConMarca > 0) {
     btnEliminar.disabled = true;
     btnEliminar.title = "No se puede eliminar: hay " + productosConMarca + " producto(s) con esta marca.";
