@@ -2188,17 +2188,27 @@ function renderCategoriaRowVista(fila, categoria, indice, total) {
   btnEliminar.type = "button";
   btnEliminar.className = "btn-delete-var";
   btnEliminar.textContent = "🗑️";
+
+  // El FK productos.categoria_id es "on delete set null": el borrado en
+  // sí no fallaría, pero dejaría productos huérfanos (fuera de todos
+  // los chips salvo "Todos") sin ningún aviso. En vez de bloquearlo
+  // recién al hacer click (un cartel que desaparece solo a los 4
+  // segundos es fácil no ver, y da la impresión de que el botón "no
+  // hace nada"), el botón queda deshabilitado de entrada con un
+  // tooltip que explica por qué.
+  const productosEnCategoria = productosAdmin.filter(function (producto) {
+    return producto.categoria_id === categoria.id;
+  }).length;
+
+  if (productosEnCategoria > 0) {
+    btnEliminar.disabled = true;
+    btnEliminar.title = "No se puede eliminar: hay " + productosEnCategoria + " producto(s) en esta categoría.";
+    acciones.appendChild(btnEliminar);
+    fila.appendChild(acciones);
+    return;
+  }
+
   btnEliminar.addEventListener("click", function () {
-    // El FK productos.categoria_id es "on delete set null": borrar acá
-    // sin este chequeo dejaría productos huérfanos (fuera de todos los
-    // chips salvo "Todos") sin ningún aviso.
-    const productosEnCategoria = productosAdmin.filter(function (producto) {
-      return producto.categoria_id === categoria.id;
-    }).length;
-    if (productosEnCategoria > 0) {
-      mostrarToast("No se puede eliminar: hay " + productosEnCategoria + " producto(s) en esta categoría.", "error");
-      return;
-    }
     confirmarAccionDoble(btnEliminar, "¿Confirmar?", async function () {
       try {
         await eliminarCategoria(categoria.id);
@@ -2499,16 +2509,26 @@ function renderMarcaRowVista(fila, marca, indice, total) {
   btnEliminar.type = "button";
   btnEliminar.className = "btn-delete-var";
   btnEliminar.textContent = "🗑️";
+
+  // El FK productos.marca_id es "on delete set null": el borrado en sí
+  // no fallaría, pero dejaría productos con marca "invisible" sin
+  // aviso. En vez de bloquearlo recién al hacer click (un cartel que
+  // desaparece solo a los 4 segundos es fácil no ver, y da la impresión
+  // de que el botón "no hace nada"), el botón queda deshabilitado de
+  // entrada con un tooltip que explica por qué.
+  const productosConMarca = productosAdmin.filter(function (producto) {
+    return producto.marca_id === marca.id;
+  }).length;
+
+  if (productosConMarca > 0) {
+    btnEliminar.disabled = true;
+    btnEliminar.title = "No se puede eliminar: hay " + productosConMarca + " producto(s) con esta marca.";
+    acciones.appendChild(btnEliminar);
+    fila.appendChild(acciones);
+    return;
+  }
+
   btnEliminar.addEventListener("click", function () {
-    // El FK productos.marca_id es "on delete set null": borrar acá sin
-    // este chequeo dejaría productos con marca "invisible" sin aviso.
-    const productosConMarca = productosAdmin.filter(function (producto) {
-      return producto.marca_id === marca.id;
-    }).length;
-    if (productosConMarca > 0) {
-      mostrarToast("No se puede eliminar: hay " + productosConMarca + " producto(s) con esta marca.", "error");
-      return;
-    }
     confirmarAccionDoble(btnEliminar, "¿Confirmar?", async function () {
       try {
         await eliminarMarca(marca.id);
