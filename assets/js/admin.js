@@ -1299,7 +1299,7 @@ function renderDetalleProducto(productoId) {
   }
 
   producto.variantes.forEach(function (variante) {
-    cuerpoTabla.appendChild(crearFilaTablaVariante(variante));
+    cuerpoTabla.appendChild(crearFilaTablaVariante(variante, producto));
   });
 }
 
@@ -1386,15 +1386,16 @@ async function manejarCambioMarcaProducto(evento) {
   }
 }
 
-function crearFilaTablaVariante(variante) {
+function crearFilaTablaVariante(variante, producto) {
   const fila = document.createElement("tr");
 
   // Foto propia de la variante (opcional): pensada para productos como
   // "Teclados" donde las variantes son muy distintas visualmente entre
-  // sí. Si no tiene, el catálogo cliente usa la foto del producto.
+  // sí. Si no tiene, se muestra (acá y en el catálogo cliente) la foto
+  // del producto principal, para que ninguna variante quede sin foto.
   const celdaFoto = document.createElement("td");
   const miniatura = document.createElement("img");
-  miniatura.src = variante.imagen_url || "assets/img/placeholder-producto.svg";
+  miniatura.src = variante.imagen_url || producto.imagen_url || "assets/img/placeholder-producto.svg";
   miniatura.alt = "";
   miniatura.style.width = "36px";
   miniatura.style.height = "36px";

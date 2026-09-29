@@ -874,17 +874,15 @@ function crearFilaVariante(producto, variante) {
   const principal = document.createElement("div");
   principal.className = "variant-item-main";
 
-  // Foto propia de la variante: solo se muestra si el admin cargó una
-  // (ej. "Teclados" 60%/100%, membrana/mecánico); si no, la foto grande
-  // de arriba del modal (la del producto) ya alcanza, no hace falta
-  // repetirla en cada fila.
-  if (variante.imagen_url) {
-    const miniatura = document.createElement("img");
-    miniatura.className = "variant-item-image";
-    miniatura.src = variante.imagen_url;
-    miniatura.alt = "";
-    principal.appendChild(miniatura);
-  }
+  // Toda variante muestra una foto: la propia si el admin cargó una
+  // (ej. "Teclados" 60%/100%, membrana/mecánico), y si no, la del
+  // producto principal (la misma que la foto grande de arriba del
+  // modal) como resguardo, para que ninguna fila quede sin imagen.
+  const miniatura = document.createElement("img");
+  miniatura.className = "variant-item-image";
+  miniatura.src = variante.imagen_url || producto.imagen_url || "assets/img/placeholder-producto.svg";
+  miniatura.alt = "";
+  principal.appendChild(miniatura);
 
   const info = document.createElement("div");
   info.className = "variant-item-info";
