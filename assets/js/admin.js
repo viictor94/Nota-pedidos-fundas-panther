@@ -1672,6 +1672,40 @@ async function manejarClickEliminarProducto() {
   });
 }
 
+// Valida SKUs antes de insertar: el SKU es único en TODA la base (no
+// solo dentro del producto), así que un solo SKU repetido entre 250
+// líneas pegadas hace fallar el insert completo (es atómico) sin
+// avisar cuál fue. Devuelve los SKUs problemáticos (duplicados dentro
+// de la misma lista pegada, o que ya existen en cualquier otro
+// producto del catálogo) para poder señalarlos antes de intentar nada.
+function validarSkusVariantes(variantes) {
+  const existentes = new Set();
+  productosAdmin.forEach(function (producto) {
+    producto.variantes.forEach(function (v) {
+      existentes.add(v.sku);
+    });
+  });
+
+  const vistosEnLista = new Set();
+  const repetidosEnLista = new Set();
+  const yaExistentes = new Set();
+
+  variantes.forEach(function (v) {
+    if (vistosEnLista.has(v.sku)) {
+      repetidosEnLista.add(v.sku);
+    }
+    vistosEnLista.add(v.sku);
+    if (existentes.has(v.sku)) {
+      yaExistentes.add(v.sku);
+    }
+  });
+
+  return {
+    repetidosEnLista: Array.from(repetidosEnLista),
+    yaExistentes: Array.from(yaExistentes),
+  };
+}
+
 // Parsea el textarea "SKU | Descripción" (una variante por línea).
 function parsearListaVariantes(texto) {
   return texto
@@ -1694,6 +1728,29 @@ function parsearListaVariantes(texto) {
     });
 }
 
+// Arma el texto del toast de error a partir de validarSkusVariantes.
+// null si no hay ningún conflicto (se puede insertar tranquilo).
+function mensajeConflictoSkus(conflicto) {
+  const TOPE = 8;
+  const partes = [];
+
+  function listar(lista) {
+    const mostrados = lista.slice(0, TOPE).join(", ");
+    const resto = lista.length > TOPE ? " (+" + (lista.length - TOPE) + " más)" : "";
+    return mostrados + resto;
+  }
+
+  if (conflicto.repetidosEnLista.length > 0) {
+    partes.push("repetidos en la lista pegada: " + listar(conflicto.repetidosEnLista));
+  }
+  if (conflicto.yaExistentes.length > 0) {
+    partes.push("ya existen en otro producto del catálogo: " + listar(conflicto.yaExistentes));
+  }
+
+  if (partes.length === 0) return null;
+  return "No se cargó ninguna variante: el SKU es único en toda la base. SKU " + partes.join("; SKU ");
+}
+
 async function manejarSubmitCrearProducto(evento) {
   evento.preventDefault();
 
@@ -1704,16 +1761,26 @@ async function manejarSubmitCrearProducto(evento) {
   const textoVariantes = document.getElementById("new-product-variants-text").value;
   const variantes = parsearListaVariantes(textoVariantes);
 
+  if (variantes.length > 0) {
+    const conflicto = validarSkusVariantes(variantes);
+    const mensaje = mensajeConflictoSkus(conflicto);
+    if (mensaje) {
+      mostrarToast(mensaje, "error");
+      return;
+    }
+  }
+
+  let productoCreado = null;
   try {
-    const producto = await crearProducto(nombre, null, categoriaId, marcaId);
+    productoCreado = await crearProducto(nombre, null, categoriaId, marcaId);
 
     if (archivoFoto) {
-      const url = await subirFotoProducto(producto.id, archivoFoto);
-      await actualizarProducto(producto.id, { imagen_url: url });
+      const url = await subirFotoProducto(productoCreado.id, archivoFoto);
+      await actualizarProducto(productoCreado.id, { imagen_url: url });
     }
 
     if (variantes.length > 0) {
-      await agregarVariantes(producto.id, variantes);
+      await agregarVariantes(productoCreado.id, variantes);
     }
 
     document.getElementById("form-create-product").reset();
@@ -1721,12 +1788,31 @@ async function manejarSubmitCrearProducto(evento) {
 
     productosAdmin = await obtenerCatalogoCompleto();
     renderListaProductos();
-    productoSeleccionadoId = producto.id;
-    renderDetalleProducto(producto.id);
+    productoSeleccionadoId = productoCreado.id;
+    renderDetalleProducto(productoCreado.id);
 
     mostrarToast("Producto creado correctamente.", "success");
   } catch (error) {
-    mostrarToast("No se pudo crear el producto.", "error");
+    console.error(error);
+    if (productoCreado) {
+      // El producto SÍ se creó (el error fue al subir la foto o al
+      // cargar las variantes): avisar eso en vez de "no se pudo crear
+      // el producto", que llevaría a reintentar y duplicarlo. Se deja
+      // seleccionado para que se puedan reintentar la foto/variantes
+      // sin crear uno nuevo.
+      document.getElementById("form-create-product").reset();
+      ocultarModal(document.getElementById("modal-create-product"));
+      productosAdmin = await obtenerCatalogoCompleto();
+      renderListaProductos();
+      productoSeleccionadoId = productoCreado.id;
+      renderDetalleProducto(productoCreado.id);
+      mostrarToast(
+        "El producto se creó, pero algo falló al cargar la foto/variantes: " + (error && error.message ? error.message : "error desconocido") + ". Quedó seleccionado para reintentar.",
+        "error"
+      );
+    } else {
+      mostrarToast("No se pudo crear el producto" + (error && error.message ? ": " + error.message : "") + ".", "error");
+    }
   }
 }
 
@@ -1740,6 +1826,13 @@ async function manejarSubmitAgregarVariante(evento) {
     return;
   }
 
+  const conflicto = validarSkusVariantes(variantes);
+  const mensaje = mensajeConflictoSkus(conflicto);
+  if (mensaje) {
+    mostrarToast(mensaje, "error");
+    return;
+  }
+
   try {
     await agregarVariantes(productoSeleccionadoId, variantes);
     document.getElementById("form-add-variant").reset();
@@ -1749,7 +1842,8 @@ async function manejarSubmitAgregarVariante(evento) {
     renderDetalleProducto(productoSeleccionadoId);
     mostrarToast("Variantes agregadas correctamente.", "success");
   } catch (error) {
-    mostrarToast("No se pudieron agregar las variantes (¿SKU repetido?).", "error");
+    console.error(error);
+    mostrarToast("No se pudieron agregar las variantes" + (error && error.message ? ": " + error.message : "") + ".", "error");
   }
 }
 

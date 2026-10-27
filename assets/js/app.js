@@ -848,7 +848,16 @@ function abrirModalVariantes(producto) {
     lista.removeChild(lista.firstChild);
   }
 
-  producto.variantes.forEach(function (variante) {
+  // Las variantes sin stock se mandan al final (orden estable: no
+  // revuelve el resto), para que lo primero que se vea al abrir el
+  // modal sean las opciones que sí se pueden pedir.
+  const variantesOrdenadas = producto.variantes.slice().sort(function (a, b) {
+    const aSinStock = a.stock_estado === "SIN STOCK" ? 1 : 0;
+    const bSinStock = b.stock_estado === "SIN STOCK" ? 1 : 0;
+    return aSinStock - bSinStock;
+  });
+
+  variantesOrdenadas.forEach(function (variante) {
     lista.appendChild(crearFilaVariante(producto, variante));
   });
 
@@ -863,7 +872,7 @@ const MAXIMO_PALABRAS_NOTA = 30;
 
 function crearFilaVariante(producto, variante) {
   const fila = document.createElement("div");
-  fila.className = "variant-item";
+  fila.className = "variant-item" + (variante.stock_estado === "SIN STOCK" ? " variant-item-sin-stock" : "");
 
   const filaSuperior = document.createElement("div");
   filaSuperior.className = "variant-item-top";

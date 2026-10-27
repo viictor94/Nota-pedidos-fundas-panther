@@ -1408,6 +1408,21 @@ a {
   border-radius: var(--radius-md);
 }
 
+/* Sin stock: se manda al final de la lista (ver abrirModalVariantes en
+   app.js) y además se atenúa visualmente, como una opción inactiva/
+   deshabilitada, para que no compita con las que sí se pueden pedir. */
+.variant-item-sin-stock {
+  background: #f8fafc;
+  border-color: #e5e7eb;
+  opacity: 0.6;
+}
+
+.variant-item-sin-stock .variant-item-model,
+.variant-item-sin-stock .variant-item-price,
+.variant-item-sin-stock .variant-item-price-old {
+  color: var(--color-text-light);
+}
+
 .variant-item-top {
   display: flex;
   justify-content: space-between;
