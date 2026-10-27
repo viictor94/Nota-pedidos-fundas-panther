@@ -870,6 +870,35 @@ a {
   text-decoration: line-through;
 }
 
+/* Precio de Repuestos (ver esCategoriaRepuestos en app.js): precio de
+   lista normal + precio "Efectivo" resaltado como una píldora, en vez
+   del tachado automático que usa el resto del catálogo. */
+.product-card-price-list {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-light);
+}
+
+.product-card-price-efectivo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+.product-card-price-efectivo-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--color-primary);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+}
+
 /* ---------- Checkout ---------- */
 .checkout-section,
 .catalog-section {
@@ -1419,8 +1448,14 @@ a {
 
 .variant-item-sin-stock .variant-item-model,
 .variant-item-sin-stock .variant-item-price,
-.variant-item-sin-stock .variant-item-price-old {
+.variant-item-sin-stock .variant-item-price-old,
+.variant-item-sin-stock .variant-item-price-list,
+.variant-item-sin-stock .variant-item-price-efectivo {
   color: var(--color-text-light);
+}
+
+.variant-item-sin-stock .variant-item-price-efectivo-label {
+  background: var(--color-text-light);
 }
 
 .variant-item-top {
@@ -1515,6 +1550,33 @@ a {
   font-weight: 600;
   font-size: 0.78rem;
   text-decoration: line-through;
+}
+
+/* Precio de Repuestos: ver equivalente .product-card-price-efectivo. */
+.variant-item-price-list {
+  color: var(--color-text-light);
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.variant-item-price-efectivo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  color: var(--color-primary);
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.variant-item-price-efectivo-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--color-primary);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
 }
 
 .variant-item-stock {

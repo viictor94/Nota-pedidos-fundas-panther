@@ -139,6 +139,65 @@ function calcularPrecioTachado(variante, producto) {
   return variante.precio_actual * factor;
 }
 
+// Repuestos es un rubro especial: en vez del precio tachado "de
+// oferta" automático, muestra el precio de lista + un precio más
+// resaltado con el descuento por pago en efectivo (ver
+// renderFilaPrecioEfectivo). La categoría se identifica por nombre
+// (no hay un flag en la tabla) porque es la forma más simple de
+// activar esto sin agregar una columna solo para un rubro.
+const DESCUENTO_EFECTIVO_REPUESTOS = 0.25;
+
+function esCategoriaRepuestos(producto) {
+  return Boolean(
+    producto.categorias && producto.categorias.nombre && producto.categorias.nombre.trim().toLowerCase() === "repuestos"
+  );
+}
+
+function calcularPrecioEfectivo(precio) {
+  return precio * (1 - DESCUENTO_EFECTIVO_REPUESTOS);
+}
+
+// Arma la fila de precio "normal": tachado automático (si aplica) +
+// precio actual. "cssPrefix" es el prefijo de clases CSS a usar (la
+// tarjeta y el modal de variantes comparten esta misma lógica con
+// prefijos distintos).
+function renderFilaPrecioNormal(filaPrecio, cssPrefix, precioActual, precioTachado) {
+  if (precioTachado !== null) {
+    const viejo = document.createElement("span");
+    viejo.className = cssPrefix + "-old";
+    viejo.textContent = formatearMoneda(precioTachado);
+    filaPrecio.appendChild(viejo);
+  }
+
+  const precio = document.createElement("span");
+  precio.className = cssPrefix;
+  precio.textContent = formatearMoneda(precioActual);
+  filaPrecio.appendChild(precio);
+}
+
+// Arma la fila de precio de Repuestos: precio de lista (el que se
+// carga en el admin) + precio "Efectivo" con el descuento, resaltado.
+function renderFilaPrecioEfectivo(filaPrecio, cssPrefix, precioActual) {
+  const lista = document.createElement("span");
+  lista.className = cssPrefix + "-list";
+  lista.textContent = formatearMoneda(precioActual);
+  filaPrecio.appendChild(lista);
+
+  const efectivo = document.createElement("span");
+  efectivo.className = cssPrefix + "-efectivo";
+
+  const montoEfectivo = document.createElement("span");
+  montoEfectivo.textContent = formatearMoneda(calcularPrecioEfectivo(precioActual));
+  efectivo.appendChild(montoEfectivo);
+
+  const etiquetaEfectivo = document.createElement("span");
+  etiquetaEfectivo.className = cssPrefix + "-efectivo-label";
+  etiquetaEfectivo.textContent = "Efectivo";
+  efectivo.appendChild(etiquetaEfectivo);
+
+  filaPrecio.appendChild(efectivo);
+}
+
 function formatearMoneda(numero) {
   return new Intl.NumberFormat("es-AR", {
     style: "currency",
@@ -809,18 +868,11 @@ function construirTarjetaBase(producto) {
   const filaPrecio = document.createElement("div");
   filaPrecio.className = "product-card-price-row";
 
-  const precioTachado = calcularPrecioTachado(varianteMasBarata, producto);
-  if (precioTachado !== null) {
-    const viejo = document.createElement("span");
-    viejo.className = "product-card-price-old";
-    viejo.textContent = formatearMoneda(precioTachado);
-    filaPrecio.appendChild(viejo);
+  if (esCategoriaRepuestos(producto)) {
+    renderFilaPrecioEfectivo(filaPrecio, "product-card-price", precioMasBarato);
+  } else {
+    renderFilaPrecioNormal(filaPrecio, "product-card-price", precioMasBarato, calcularPrecioTachado(varianteMasBarata, producto));
   }
-
-  const precio = document.createElement("p");
-  precio.className = "product-card-price";
-  precio.textContent = formatearMoneda(precioMasBarato);
-  filaPrecio.appendChild(precio);
 
   bloquePrecio.appendChild(filaPrecio);
 
@@ -871,6 +923,8 @@ function abrirModalVariantes(producto) {
 const MAXIMO_PALABRAS_NOTA = 30;
 
 function crearFilaVariante(producto, variante) {
+  const esRepuestos = esCategoriaRepuestos(producto);
+
   const fila = document.createElement("div");
   fila.className = "variant-item" + (variante.stock_estado === "SIN STOCK" ? " variant-item-sin-stock" : "");
 
@@ -904,18 +958,11 @@ function crearFilaVariante(producto, variante) {
   const filaPrecio = document.createElement("div");
   filaPrecio.className = "variant-item-price-row";
 
-  const precioTachado = calcularPrecioTachado(variante, producto);
-  if (precioTachado !== null) {
-    const viejo = document.createElement("span");
-    viejo.className = "variant-item-price-old";
-    viejo.textContent = formatearMoneda(precioTachado);
-    filaPrecio.appendChild(viejo);
+  if (esRepuestos) {
+    renderFilaPrecioEfectivo(filaPrecio, "variant-item-price", variante.precio_actual);
+  } else {
+    renderFilaPrecioNormal(filaPrecio, "variant-item-price", variante.precio_actual, calcularPrecioTachado(variante, producto));
   }
-
-  const precio = document.createElement("span");
-  precio.className = "variant-item-price";
-  precio.textContent = formatearMoneda(variante.precio_actual);
-  filaPrecio.appendChild(precio);
 
   info.appendChild(filaPrecio);
 
@@ -956,13 +1003,19 @@ function crearFilaVariante(producto, variante) {
   btnMas.className = "qty-btn";
   btnMas.textContent = "+";
 
+  // Detalle opcional para la vendedora al armar el pedido (color,
+  // género, diseño puntual, etc.). No aplica a Repuestos (no lo
+  // necesitan): en ese caso "textareaNota" queda en null, y los
+  // handlers de +/- de abajo lo contemplan.
+  let textareaNota = null;
+
   btnMenos.addEventListener("click", function () {
-    cambiarCantidadCarrito(producto, variante, -1, textareaNota.value.trim());
+    cambiarCantidadCarrito(producto, variante, -1, textareaNota ? textareaNota.value.trim() : "");
     valor.textContent = String((carrito[variante.id] && carrito[variante.id].cantidad) || 0);
   });
 
   btnMas.addEventListener("click", function () {
-    cambiarCantidadCarrito(producto, variante, 1, textareaNota.value.trim());
+    cambiarCantidadCarrito(producto, variante, 1, textareaNota ? textareaNota.value.trim() : "");
     valor.textContent = String((carrito[variante.id] && carrito[variante.id].cantidad) || 0);
   });
 
@@ -972,11 +1025,13 @@ function crearFilaVariante(producto, variante) {
   filaSuperior.appendChild(control);
   fila.appendChild(filaSuperior);
 
-  // Detalle opcional para la vendedora al armar el pedido (color,
-  // género, diseño puntual, etc.). Vive en el carrito junto al resto
-  // del ítem, no en una tabla aparte: se ve en pedido.html/PDF pero
-  // nunca se exporta al Excel (ese archivo es solo para picking por
-  // SKU/cantidad).
+  if (esRepuestos) {
+    return fila;
+  }
+
+  // Vive en el carrito junto al resto del ítem, no en una tabla
+  // aparte: se ve en pedido.html/PDF pero nunca se exporta al Excel
+  // (ese archivo es solo para picking por SKU/cantidad).
   const notaBox = document.createElement("div");
   notaBox.className = "variant-item-nota";
 
@@ -985,7 +1040,7 @@ function crearFilaVariante(producto, variante) {
   notaLabel.textContent = "Agregar algún detalle";
   notaBox.appendChild(notaLabel);
 
-  const textareaNota = document.createElement("textarea");
+  textareaNota = document.createElement("textarea");
   textareaNota.className = "variant-item-nota-input";
   textareaNota.rows = 2;
   textareaNota.placeholder = "Contanos si necesitás color, género, diseño específico, etc.";
