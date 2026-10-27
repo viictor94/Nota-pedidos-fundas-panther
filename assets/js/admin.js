@@ -1298,9 +1298,14 @@ function renderDetalleProducto(productoId) {
     cuerpoTabla.removeChild(cuerpoTabla.firstChild);
   }
 
+  // Con un producto de cientos de variantes, agregar fila por fila
+  // directo al <tbody> fuerza un reflow en cada appendChild; un
+  // DocumentFragment arma todo en memoria y se inserta de una sola vez.
+  const fragmento = document.createDocumentFragment();
   producto.variantes.forEach(function (variante) {
-    cuerpoTabla.appendChild(crearFilaTablaVariante(variante, producto));
+    fragmento.appendChild(crearFilaTablaVariante(variante, producto));
   });
+  cuerpoTabla.appendChild(fragmento);
 }
 
 // Guarda el nombre del producto al salir del campo (blur) o con Enter.
@@ -1771,6 +1776,14 @@ async function manejarSubmitCrearProducto(evento) {
   }
 
   let productoCreado = null;
+  // Con una lista larga de variantes (cientos de líneas) el guardado
+  // puede tardar varios segundos (insert + volver a traer todo el
+  // catálogo + dibujar la tabla de variantes); sin este feedback el
+  // botón se queda igual y da la sensación de que la página se colgó.
+  const btnSubmit = document.getElementById("btn-submit-create-product");
+  const textoOriginalBtn = btnSubmit.textContent;
+  btnSubmit.disabled = true;
+  btnSubmit.textContent = "Guardando...";
   try {
     productoCreado = await crearProducto(nombre, null, categoriaId, marcaId);
 
@@ -1813,6 +1826,9 @@ async function manejarSubmitCrearProducto(evento) {
     } else {
       mostrarToast("No se pudo crear el producto" + (error && error.message ? ": " + error.message : "") + ".", "error");
     }
+  } finally {
+    btnSubmit.disabled = false;
+    btnSubmit.textContent = textoOriginalBtn;
   }
 }
 
@@ -1833,6 +1849,10 @@ async function manejarSubmitAgregarVariante(evento) {
     return;
   }
 
+  const btnSubmit = document.getElementById("btn-submit-add-variant");
+  const textoOriginalBtn = btnSubmit.textContent;
+  btnSubmit.disabled = true;
+  btnSubmit.textContent = "Guardando...";
   try {
     await agregarVariantes(productoSeleccionadoId, variantes);
     document.getElementById("form-add-variant").reset();
@@ -1844,6 +1864,9 @@ async function manejarSubmitAgregarVariante(evento) {
   } catch (error) {
     console.error(error);
     mostrarToast("No se pudieron agregar las variantes" + (error && error.message ? ": " + error.message : "") + ".", "error");
+  } finally {
+    btnSubmit.disabled = false;
+    btnSubmit.textContent = textoOriginalBtn;
   }
 }
 
