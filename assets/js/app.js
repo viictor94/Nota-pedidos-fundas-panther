@@ -424,10 +424,19 @@ function obtenerCatalogoFiltrado() {
   if (terminoBusqueda) {
     resultado = resultado.filter(function (producto) {
       const coincideNombre = producto.nombre.toLowerCase().includes(terminoBusqueda);
-      const coincideSku = producto.variantes.some(function (variante) {
-        return (variante.sku || "").toLowerCase().includes(terminoBusqueda);
+      // Busca también dentro de las variantes (SKU y el texto del
+      // modelo, ej. "MODULO SAMSUNG A12 F12 UNIVERSAL"), no solo en el
+      // nombre del producto: así "a12" encuentra el producto aunque el
+      // nombre no diga "A12" en ningún lado. Sigue siendo un filtro en
+      // memoria sobre el catálogo ya cargado, no pega a Supabase de
+      // nuevo, así que no hay costo extra de red por tecla.
+      const coincideVariante = producto.variantes.some(function (variante) {
+        return (
+          (variante.sku || "").toLowerCase().includes(terminoBusqueda) ||
+          (variante.modelo || "").toLowerCase().includes(terminoBusqueda)
+        );
       });
-      return coincideNombre || coincideSku;
+      return coincideNombre || coincideVariante;
     });
   }
 
