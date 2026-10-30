@@ -211,7 +211,17 @@ async function crearPedido(pedido) {
   // cliente solo tiene permiso de INSERT sobre "pedidos" por RLS, no
   // de SELECT).
   const id = crypto.randomUUID();
+  const vendedorId = pedido.vendedorId || null;
 
+  // Si el cliente ya eligió un vendedor/a puntual en el checkout (no
+  // "cualquiera"), el pedido nace directamente "asignado" a ella/él:
+  // antes vendedor_id quedaba seteado pero el estado se quedaba en
+  // "nuevo" (el default de la columna), y como el panel decide qué
+  // botón mostrar mirando el estado (no si ya hay vendedor_id), ese
+  // pedido quedaba sin ningún botón de acción ("agarrar" no aplica
+  // porque ya tiene dueño, "armar" tampoco porque el estado no era
+  // "asignado"). El trigger que completa tomado_en solo corre en
+  // updates, no en el insert, así que acá también se carga a mano.
   const { error } = await supabaseClient.from("pedidos").insert({
     id: id,
     cliente_nombre: pedido.clienteNombre,
@@ -219,7 +229,9 @@ async function crearPedido(pedido) {
     items: pedido.items,
     total: pedido.total,
     cantidad_articulos: pedido.cantidadArticulos,
-    vendedor_id: pedido.vendedorId || null,
+    vendedor_id: vendedorId,
+    estado: vendedorId ? "asignado" : "nuevo",
+    tomado_en: vendedorId ? new Date().toISOString() : null,
   });
 
   if (error) {

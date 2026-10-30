@@ -319,6 +319,18 @@ alter table public.pedidos drop constraint if exists pedidos_estado_check;
 alter table public.pedidos add constraint pedidos_estado_check
   check (estado in ('nuevo', 'asignado', 'preparado', 'completado'));
 
+-- Corrección única de datos: hasta ahora, un pedido con vendedor/a
+-- elegida por el cliente en el checkout (vendedor_id ya seteado desde
+-- el insert) quedaba con estado "nuevo" igual, porque nada actualizaba
+-- esa transición. El panel decide qué botón mostrarle a la vendedora
+-- mirando el estado, así que esos pedidos quedaban sin ningún botón de
+-- acción (ni "agarrar", porque ya tenían dueño, ni "armar", porque el
+-- estado no era "asignado"). Esto repara lo ya cargado; crearPedido ya
+-- no lo vuelve a generar (ver data.js).
+update public.pedidos
+set estado = 'asignado', tomado_en = coalesce(tomado_en, created_at)
+where vendedor_id is not null and estado = 'nuevo';
+
 -- ---------------------------------------------------------------------
 -- updated_at automático
 -- ---------------------------------------------------------------------
@@ -883,8 +895,8 @@ begin
       armado_finalizado_por = v_vendedor_nombre,
       preparado_por_id = v_vendedor_id,
       preparado_por_nombre = v_vendedor_nombre,
-      estado = case when estado = 'asignado' then 'preparado' else estado end
-  where id = p_id and vendedor_id = v_vendedor_id and estado in ('asignado', 'preparado');
+      estado = case when estado in ('nuevo', 'asignado') then 'preparado' else estado end
+  where id = p_id and vendedor_id = v_vendedor_id and estado in ('nuevo', 'asignado', 'preparado');
 
   get diagnostics v_actualizadas = row_count;
   return v_actualizadas > 0;

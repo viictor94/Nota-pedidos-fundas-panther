@@ -569,7 +569,12 @@ function renderFilaPedidoVendedora(pedido, celdaCliente, celdaTelefono, celdaEst
       manejarTomarPedido(pedido.id, btnTomar);
     });
     celdaAcciones.appendChild(btnTomar);
-  } else if (pedido.vendedor_id === miVendedorId && pedido.estado === "asignado") {
+  } else if (pedido.vendedor_id === miVendedorId && (pedido.estado === "asignado" || pedido.estado === "nuevo")) {
+    // El "|| estado === nuevo" es un resguardo: si por lo que sea un
+    // pedido queda con vendedor_id ya puesto pero el estado todavía en
+    // "nuevo" (ver crearPedido en data.js, que ya evita esto en los
+    // pedidos nuevos), igual tiene que poder armarse en vez de quedar
+    // sin ningún botón de acción.
     const btnArmar = document.createElement("button");
     btnArmar.type = "button";
     btnArmar.className = "btn-primary btn-accion-vendedora";
