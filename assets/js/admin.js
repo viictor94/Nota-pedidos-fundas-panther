@@ -274,29 +274,45 @@ async function cargarDatosAdmin() {
 
   const [config, catalogo, pedidos, vendedores, categorias, marcas] = resultados;
 
+  // Primero se asignan TODAS las globales, recién después se
+  // renderiza: la tabla de Pedidos lee vendedoresAdmin (desplegable de
+  // "Vendedor/a") al dibujarse, así que si se renderizaba pedidos antes
+  // de que vendedoresAdmin ya estuviera asignado, ese desplegable
+  // quedaba vacío aunque los vendedores sí se hubieran cargado bien.
   if (config.status === "fulfilled") {
     document.getElementById("config-whatsapp").value = config.value.whatsapp_vendedor || "";
   }
   if (catalogo.status === "fulfilled") {
     productosAdmin = catalogo.value;
-    renderListaProductos();
   }
   if (pedidos.status === "fulfilled") {
     pedidosAdmin = pedidos.value;
+  }
+  if (vendedores.status === "fulfilled") {
+    vendedoresAdmin = vendedores.value;
+  }
+  if (categorias.status === "fulfilled") {
+    categoriasAdmin = categorias.value;
+  }
+  if (marcas.status === "fulfilled") {
+    marcasAdmin = marcas.value;
+  }
+
+  if (catalogo.status === "fulfilled") {
+    renderListaProductos();
+  }
+  if (pedidos.status === "fulfilled") {
     renderTablasPedidos(pedidosAdmin);
     renderReporteVendedores(pedidosAdmin);
   }
   if (vendedores.status === "fulfilled") {
-    vendedoresAdmin = vendedores.value;
     renderVendedoresAgrupados();
   }
   if (categorias.status === "fulfilled") {
-    categoriasAdmin = categorias.value;
     renderCategoriasLista();
     renderSelectsCategorias();
   }
   if (marcas.status === "fulfilled") {
-    marcasAdmin = marcas.value;
     renderMarcasLista();
     renderSelectsMarcas();
   }
@@ -1111,7 +1127,7 @@ function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado,
   });
 
   selectVendedor.addEventListener("change", function () {
-    guardarVendedorPedido(pedido.id, selectVendedor.value || null);
+    guardarVendedorPedido(pedido, selectVendedor.value || null);
   });
   celdaVendedor.appendChild(selectVendedor);
 
@@ -1375,13 +1391,32 @@ async function manejarTogglePagoRetiroAdmin(pedido, nuevoPagado, nuevoRetirado, 
   }
 }
 
-async function guardarVendedorPedido(pedidoId, vendedorId) {
+// Recibe el pedido completo (no solo el id) para poder decidir si hace
+// falta mover el estado junto con el vendedor/a. Mismo bug que ya se
+// corrigió en crearPedido (data.js) para cuando el CLIENTE elige
+// vendedor/a en el checkout: acá es la misma situación pero cuando es
+// el ADMIN quien lo asigna a mano desde este desplegable. Sin esto,
+// vendedor_id quedaba seteado pero el estado se quedaba en "nuevo", y
+// esa vendedora no podía ni agarrarlo (ya tenía dueño) ni armarlo (no
+// estaba "asignado").
+async function guardarVendedorPedido(pedido, vendedorId) {
   try {
-    await actualizarPedido(pedidoId, { vendedor_id: vendedorId });
+    const campos = { vendedor_id: vendedorId };
+
+    if (vendedorId && pedido.estado === "nuevo") {
+      campos.estado = "asignado";
+      campos.tomado_en = pedido.tomado_en || new Date().toISOString();
+    } else if (!vendedorId && pedido.estado === "asignado") {
+      // Se le sacó el vendedor/a a un pedido que todavía no se armó:
+      // vuelve a quedar libre para que lo agarre cualquiera.
+      campos.estado = "nuevo";
+    }
+
+    await actualizarPedido(pedido.id, campos);
     await refrescarPedidos();
-    mostrarToast("Vendedora asignada al pedido.", "success");
+    mostrarToast(vendedorId ? "Vendedor/a asignado al pedido." : "Se quitó el vendedor/a del pedido.", "success");
   } catch (error) {
-    mostrarToast("No se pudo asignar la vendedora.", "error");
+    mostrarToast("No se pudo asignar el vendedor/a.", "error");
   }
 }
 
