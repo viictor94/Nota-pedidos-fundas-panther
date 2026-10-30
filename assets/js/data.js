@@ -258,43 +258,6 @@ async function marcarItemPedido(id, sku, marcado) {
   }
 }
 
-// Valida el N° de vendedor/a ingresado en "Preparar Pedido" y toma el
-// bloqueo de armado (o avisa si ya lo tiene tomado otra persona). Ver
-// iniciar_armado_pedido en supabase/schema.sql.
-async function iniciarArmadoPedido(id, numeroZeus) {
-  const { data, error } = await supabaseClient.rpc("iniciar_armado_pedido", { p_id: id, p_numero_zeus: numeroZeus });
-  if (error) {
-    throw error;
-  }
-  return data && data.length > 0 ? data[0] : { ok: false, motivo: "error" };
-}
-
-// Guarda los items (agregados/sacados por la vendedora al armar) y el
-// total recalculado. Devuelve false si el N° de vendedor es inválido o
-// si otra persona tiene el pedido tomado.
-async function actualizarItemsPedido(id, items, total, cantidadArticulos, numeroZeus) {
-  const { data, error } = await supabaseClient.rpc("actualizar_items_pedido", {
-    p_id: id,
-    p_items: items,
-    p_total: total,
-    p_cantidad_articulos: cantidadArticulos,
-    p_numero_zeus: numeroZeus,
-  });
-  if (error) {
-    throw error;
-  }
-  return data;
-}
-
-// Cierra el armado del pedido y libera el bloqueo.
-async function finalizarArmadoPedido(id, numeroZeus) {
-  const { data, error } = await supabaseClient.rpc("finalizar_armado_pedido", { p_id: id, p_numero_zeus: numeroZeus });
-  if (error) {
-    throw error;
-  }
-  return data;
-}
-
 // Lista todos los pedidos para el panel admin (requiere sesión activa;
 // protegido además por la política RLS "pedidos_lectura_admin").
 async function obtenerPedidos() {
@@ -340,8 +303,24 @@ async function tomarPedido(id) {
   return data && data.length > 0 ? data[0] : { ok: false, motivo: "error", vendedor_nombre: null };
 }
 
-async function prepararPedidoPropio(id) {
-  const { data, error } = await supabaseClient.rpc("preparar_pedido_propio", { p_id: id });
+// La vendedora logueada ya no usa "preparar_pedido_propio" sola (un
+// click que solo cambiaba el estado, sin relación con el checklist
+// real de armado): ver finalizarArmadoPropio, que guarda los items +
+// cierra el armado en un solo paso.
+
+// Guarda los items editados (agregados/sacados/cantidad) + total
+// recalculado y cierra el armado como "preparado", todo en un solo
+// paso. Reemplaza, para el panel logueado, a lo que antes eran dos
+// pasos separados en pedido.html con N° de Zeus (actualizar_items_pedido
+// + finalizar_armado_pedido). Ver finalizar_armado_propio en
+// supabase/schema.sql.
+async function finalizarArmadoPropio(id, items, total, cantidadArticulos) {
+  const { data, error } = await supabaseClient.rpc("finalizar_armado_propio", {
+    p_id: id,
+    p_items: items,
+    p_total: total,
+    p_cantidad_articulos: cantidadArticulos,
+  });
   if (error) {
     throw error;
   }

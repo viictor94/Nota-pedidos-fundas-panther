@@ -24,6 +24,13 @@ let rolActual = null; // "admin", "editor" o "vendedora": del usuario logueado, 
 let usuarioActualId = null; // Id del usuario logueado (para no dejarlo autoeliminarse/autodegradarse).
 let miVendedorId = null; // Solo para rol "vendedora": su fila vinculada en "vendedores" (ver perfiles_admin.vendedor_id).
 
+// Armado de pedido (checklist): pedido abierto en el modal "🛠️ Armar
+// Pedido" y copia local editable de sus items (se guarda recién al
+// finalizar, igual que hacía pedido.html; el tilde de cada artículo sí
+// se guarda al toque, ver manejarToggleItemArmado).
+let pedidoEnArmadoId = null;
+let itemsEnArmado = [];
+
 // ---------------------------------------------------------------------
 // Inicialización
 // ---------------------------------------------------------------------
@@ -102,6 +109,17 @@ function wireEventosEstaticos() {
     ocultarModal(document.getElementById("modal-add-variant"));
   });
   document.getElementById("form-add-variant").addEventListener("submit", manejarSubmitAgregarVariante);
+
+  document.getElementById("btn-cerrar-armar-pedido").addEventListener("click", function () {
+    ocultarModal(document.getElementById("modal-armar-pedido"));
+  });
+  document.getElementById("btn-toggle-agregar-item").addEventListener("click", function () {
+    const form = document.getElementById("armar-pedido-agregar-form");
+    form.style.display = form.style.display === "none" ? "flex" : "none";
+  });
+  document.getElementById("armar-select-producto").addEventListener("change", poblarSelectVarianteArmado);
+  document.getElementById("btn-confirmar-agregar-item").addEventListener("click", manejarConfirmarAgregarItemArmado);
+  document.getElementById("btn-finalizar-armado-propio").addEventListener("click", manejarFinalizarArmado);
 
   document.getElementById("btn-trigger-photo-upload").addEventListener("click", function () {
     document.getElementById("photo-file-input").click();
@@ -552,16 +570,28 @@ function renderFilaPedidoVendedora(pedido, celdaCliente, celdaTelefono, celdaEst
     });
     celdaAcciones.appendChild(btnTomar);
   } else if (pedido.vendedor_id === miVendedorId && pedido.estado === "asignado") {
-    const btnPreparar = document.createElement("button");
-    btnPreparar.type = "button";
-    btnPreparar.className = "btn-secondary btn-accion-vendedora";
-    btnPreparar.style.width = "auto";
-    btnPreparar.textContent = "📦 Marcar preparado";
-    btnPreparar.addEventListener("click", function () {
-      manejarPrepararPedido(pedido.id, btnPreparar);
+    const btnArmar = document.createElement("button");
+    btnArmar.type = "button";
+    btnArmar.className = "btn-primary btn-accion-vendedora";
+    btnArmar.style.width = "auto";
+    btnArmar.textContent = "🛠️ Armar pedido";
+    btnArmar.addEventListener("click", function () {
+      abrirModalArmarPedido(pedido);
     });
-    celdaAcciones.appendChild(btnPreparar);
+    celdaAcciones.appendChild(btnArmar);
   } else if (pedido.vendedor_id === miVendedorId && pedido.estado === "preparado") {
+    // Después de armado sigue pudiendo reabrirse (ej. si faltó algo),
+    // hasta que se marca pagado.
+    const btnRevisar = document.createElement("button");
+    btnRevisar.type = "button";
+    btnRevisar.className = "btn-secondary btn-accion-vendedora";
+    btnRevisar.style.width = "auto";
+    btnRevisar.textContent = "✏️ Revisar armado";
+    btnRevisar.addEventListener("click", function () {
+      abrirModalArmarPedido(pedido);
+    });
+    celdaAcciones.appendChild(btnRevisar);
+
     const btnCompletar = document.createElement("button");
     btnCompletar.type = "button";
     btnCompletar.className = "btn-secondary btn-accion-vendedora";
@@ -599,15 +629,262 @@ async function manejarTomarPedido(pedidoId, boton) {
   }
 }
 
-async function manejarPrepararPedido(pedidoId, boton) {
-  boton.disabled = true;
+// ---------------------------------------------------------------------
+// Modal "🛠️ Armar Pedido": checklist de armado para la vendedora
+// (reemplaza al N° de Zeus de pedido.html; la identidad ya la da la
+// sesión logueada). Los tildes se guardan al toque (marcarItemPedido,
+// igual que hacía pedido.html); los items agregados/sacados quedan en
+// memoria y se guardan todos juntos recién al finalizar.
+// ---------------------------------------------------------------------
+
+function abrirModalArmarPedido(pedido) {
+  pedidoEnArmadoId = pedido.id;
+  itemsEnArmado = (pedido.items || []).map(function (item) {
+    return Object.assign({}, item);
+  });
+
+  document.getElementById("armar-pedido-cliente").textContent = pedido.cliente_nombre + " · " + pedido.cliente_telefono;
+  document.getElementById("armar-pedido-agregar-form").style.display = "none";
+  document.getElementById("armar-agregar-error").style.display = "none";
+
+  renderArmadoItems(pedido.items_marcados || {});
+  poblarSelectsAgregarArmado();
+  mostrarModal(document.getElementById("modal-armar-pedido"));
+}
+
+function totalesArmado(items) {
+  let total = 0;
+  let cantidadArticulos = 0;
+  items.forEach(function (item) {
+    total += item.precioUnitario * item.cantidad;
+    cantidadArticulos += item.cantidad;
+  });
+  return { total: total, cantidadArticulos: cantidadArticulos };
+}
+
+function renderArmadoItems(itemsMarcados) {
+  const contenedor = document.getElementById("armar-pedido-items");
+  while (contenedor.firstChild) {
+    contenedor.removeChild(contenedor.firstChild);
+  }
+
+  document.getElementById("armar-pedido-vacio").style.display = itemsEnArmado.length === 0 ? "block" : "none";
+
+  itemsEnArmado.forEach(function (item) {
+    contenedor.appendChild(crearFilaArmadoItem(item, Boolean(itemsMarcados[item.sku])));
+  });
+
+  document.getElementById("armar-pedido-total").textContent = formatearMoneda(totalesArmado(itemsEnArmado).total);
+}
+
+function crearFilaArmadoItem(item, marcado) {
+  const fila = document.createElement("div");
+  fila.className = "vendedor-row armado-item-row" + (marcado ? " marcado" : "");
+
+  const principal = document.createElement("div");
+  principal.className = "armado-item-main";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = marcado;
+  checkbox.setAttribute("aria-label", "Marcar " + item.sku + " como juntado");
+  checkbox.addEventListener("change", function () {
+    manejarToggleItemArmado(item.sku, checkbox, fila);
+  });
+  principal.appendChild(checkbox);
+
+  const info = document.createElement("div");
+  info.className = "vendedor-row-info";
+
+  const nombre = document.createElement("span");
+  nombre.className = "vendedor-row-name";
+  nombre.textContent = item.sku + " — " + item.modelo;
+  info.appendChild(nombre);
+
+  const detalle = document.createElement("span");
+  detalle.className = "vendedor-row-zeus";
+  detalle.textContent = item.cantidad + " × " + formatearMoneda(item.precioUnitario) + " (" + item.productoNombre + ")";
+  info.appendChild(detalle);
+
+  if (item.nota) {
+    const nota = document.createElement("span");
+    nota.className = "armado-item-nota";
+    nota.textContent = "📝 " + item.nota;
+    info.appendChild(nota);
+  }
+
+  principal.appendChild(info);
+  fila.appendChild(principal);
+
+  const acciones = document.createElement("div");
+  acciones.className = "vendedor-row-actions";
+
+  const btnQuitar = document.createElement("button");
+  btnQuitar.type = "button";
+  btnQuitar.className = "btn-delete-var";
+  btnQuitar.title = "Sacar del pedido";
+  btnQuitar.textContent = "🗑️";
+  btnQuitar.addEventListener("click", function () {
+    itemsEnArmado = itemsEnArmado.filter(function (i) {
+      return i.sku !== item.sku;
+    });
+    renderArmadoItems(pedidosAdmin.find(function (p) { return p.id === pedidoEnArmadoId; }).items_marcados || {});
+  });
+  acciones.appendChild(btnQuitar);
+
+  fila.appendChild(acciones);
+  return fila;
+}
+
+// Guarda el tilde al toque (como ya hacía pedido.html), independiente
+// del resto del armado: así el progreso no se pierde aunque se cierre
+// el modal antes de "Finalizar armado".
+async function manejarToggleItemArmado(sku, checkbox, fila) {
+  const marcado = checkbox.checked;
+  fila.classList.toggle("marcado", marcado);
+  checkbox.disabled = true;
   try {
-    const ok = await prepararPedidoPropio(pedidoId);
-    mostrarToast(ok ? "Pedido marcado como preparado." : "No se pudo marcar como preparado.", ok ? "success" : "error");
-    await refrescarPedidos();
+    await marcarItemPedido(pedidoEnArmadoId, sku, marcado);
+    const pedido = pedidosAdmin.find(function (p) {
+      return p.id === pedidoEnArmadoId;
+    });
+    if (pedido) {
+      pedido.items_marcados = pedido.items_marcados || {};
+      pedido.items_marcados[sku] = marcado;
+    }
   } catch (error) {
-    mostrarToast("No se pudo marcar como preparado.", "error");
+    checkbox.checked = !marcado;
+    fila.classList.toggle("marcado", !marcado);
+    mostrarToast("No se pudo guardar el tilde. Probá de nuevo.", "error");
+  } finally {
+    checkbox.disabled = false;
+  }
+}
+
+function poblarSelectsAgregarArmado() {
+  const selectProducto = document.getElementById("armar-select-producto");
+  while (selectProducto.firstChild) {
+    selectProducto.removeChild(selectProducto.firstChild);
+  }
+  productosAdmin
+    .filter(function (p) {
+      return p.activo && p.variantes.some(function (v) { return v.activo; });
+    })
+    .forEach(function (producto) {
+      const opcion = document.createElement("option");
+      opcion.value = producto.id;
+      opcion.textContent = producto.nombre;
+      selectProducto.appendChild(opcion);
+    });
+  poblarSelectVarianteArmado();
+}
+
+function poblarSelectVarianteArmado() {
+  const selectProducto = document.getElementById("armar-select-producto");
+  const selectVariante = document.getElementById("armar-select-variante");
+  while (selectVariante.firstChild) {
+    selectVariante.removeChild(selectVariante.firstChild);
+  }
+
+  const producto = productosAdmin.find(function (p) {
+    return p.id === selectProducto.value;
+  });
+  if (!producto) return;
+
+  producto.variantes
+    .filter(function (v) {
+      return v.activo;
+    })
+    .forEach(function (variante) {
+      const opcion = document.createElement("option");
+      opcion.value = variante.id;
+      opcion.textContent = variante.sku + " - " + variante.modelo + " (" + formatearMoneda(variante.precio_actual) + ")";
+      selectVariante.appendChild(opcion);
+    });
+}
+
+function manejarConfirmarAgregarItemArmado() {
+  const errorBox = document.getElementById("armar-agregar-error");
+  const selectProducto = document.getElementById("armar-select-producto");
+  const selectVariante = document.getElementById("armar-select-variante");
+  const cantidad = parseInt(document.getElementById("armar-input-cantidad").value, 10);
+  const nota = document.getElementById("armar-input-nota").value.trim();
+
+  const producto = productosAdmin.find(function (p) {
+    return p.id === selectProducto.value;
+  });
+  const variante = producto
+    ? producto.variantes.find(function (v) {
+        return v.id === selectVariante.value;
+      })
+    : null;
+
+  if (!producto || !variante) {
+    errorBox.textContent = "Elegí un producto y una variante.";
+    errorBox.style.display = "block";
+    return;
+  }
+  if (!cantidad || cantidad < 1) {
+    errorBox.textContent = "La cantidad debe ser al menos 1.";
+    errorBox.style.display = "block";
+    return;
+  }
+  errorBox.style.display = "none";
+
+  const existente = itemsEnArmado.find(function (item) {
+    return item.sku === variante.sku;
+  });
+  if (existente) {
+    existente.cantidad += cantidad;
+    if (nota) existente.nota = nota;
+  } else {
+    itemsEnArmado.push({
+      productoId: producto.id,
+      productoNombre: producto.nombre,
+      varianteId: variante.id,
+      sku: variante.sku,
+      modelo: variante.modelo,
+      precioUnitario: variante.precio_actual,
+      cantidad: cantidad,
+      nota: nota || "",
+    });
+  }
+
+  document.getElementById("armar-pedido-agregar-form").style.display = "none";
+  document.getElementById("armar-input-nota").value = "";
+  document.getElementById("armar-input-cantidad").value = "1";
+
+  const pedido = pedidosAdmin.find(function (p) {
+    return p.id === pedidoEnArmadoId;
+  });
+  renderArmadoItems((pedido && pedido.items_marcados) || {});
+}
+
+async function manejarFinalizarArmado() {
+  if (!pedidoEnArmadoId) return;
+
+  const boton = document.getElementById("btn-finalizar-armado-propio");
+  const textoOriginal = boton.textContent;
+  boton.disabled = true;
+  boton.textContent = "Guardando...";
+
+  const totales = totalesArmado(itemsEnArmado);
+
+  try {
+    const ok = await finalizarArmadoPropio(pedidoEnArmadoId, itemsEnArmado, totales.total, totales.cantidadArticulos);
+    if (!ok) {
+      mostrarToast("No se pudo finalizar el armado (¿el pedido cambió de estado?).", "error");
+      return;
+    }
+    ocultarModal(document.getElementById("modal-armar-pedido"));
+    pedidoEnArmadoId = null;
+    await refrescarPedidos();
+    mostrarToast("Armado finalizado.", "success");
+  } catch (error) {
+    mostrarToast("No se pudo finalizar el armado.", "error");
+  } finally {
     boton.disabled = false;
+    boton.textContent = textoOriginal;
   }
 }
 

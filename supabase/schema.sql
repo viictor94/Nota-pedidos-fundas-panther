@@ -843,6 +843,57 @@ $$;
 revoke all on function public.preparar_pedido_propio(uuid) from public;
 grant execute on function public.preparar_pedido_propio(uuid) to authenticated;
 
+-- Guarda el armado completo (items editados + total recalculado) y lo
+-- cierra como "preparado" en un solo paso, para la vendedora logueada
+-- en el panel (no por N° de Zeus): reemplaza al combo viejo de
+-- actualizar_items_pedido + finalizar_armado_pedido + este mismo
+-- preparar_pedido_propio, que vivían repartidos entre pedido.html (con
+-- su propia identidad por N° de Zeus) y el panel. Con esto el armado
+-- entero queda del lado del panel, bajo una sola identidad.
+create or replace function public.finalizar_armado_propio(
+  p_id uuid,
+  p_items jsonb,
+  p_total numeric,
+  p_cantidad_articulos integer
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_vendedor_id     uuid;
+  v_vendedor_nombre text;
+  v_actualizadas    integer;
+begin
+  select pa.vendedor_id, v.nombre_completo into v_vendedor_id, v_vendedor_nombre
+  from public.perfiles_admin pa
+  join public.vendedores v on v.id = pa.vendedor_id and v.activo
+  where pa.id = auth.uid() and pa.rol = 'vendedora' and pa.activo;
+
+  if v_vendedor_id is null then
+    return false;
+  end if;
+
+  update public.pedidos
+  set items = p_items,
+      total = p_total,
+      cantidad_articulos = p_cantidad_articulos,
+      armado_finalizado = true,
+      armado_finalizado_por = v_vendedor_nombre,
+      preparado_por_id = v_vendedor_id,
+      preparado_por_nombre = v_vendedor_nombre,
+      estado = case when estado = 'asignado' then 'preparado' else estado end
+  where id = p_id and vendedor_id = v_vendedor_id and estado in ('asignado', 'preparado');
+
+  get diagnostics v_actualizadas = row_count;
+  return v_actualizadas > 0;
+end;
+$$;
+
+revoke all on function public.finalizar_armado_propio(uuid, jsonb, numeric, integer) from public;
+grant execute on function public.finalizar_armado_propio(uuid, jsonb, numeric, integer) to authenticated;
+
 -- Cierra (estado "completado"/pagado) un pedido que ya es suyo y que ya
 -- pasó por "preparado". No permite tocar pedidos de otra vendedora ni
 -- saltearse el paso de preparado (para eso están tomar_pedido y

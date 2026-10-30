@@ -1,31 +1,24 @@
 // =====================================================================
-// Lógica de pedido.html: página pública de "mi pedido", a la que se
-// llega por un link con ?id=<uuid del pedido>. Ofrece dos modos:
+// Lógica de pedido.html: página pública de "mi pedido" (solo lectura),
+// a la que se llega por un link con ?id=<uuid del pedido>. La usa el
+// cliente para ver el detalle y compartirlo, y sirve como comprobante:
+// antes de que se finalice el armado muestra todo tal cual se pidió;
+// una vez finalizado, separa lo que quedó disponible (tildado por la
+// vendedora al armarlo) de lo que no había, y el total a pagar sólo
+// cuenta lo disponible.
 //
-// - "Ver Pedido": solo lectura, para el cliente (y para reenviar el
-//   link). Antes de finalizar el armado muestra todo el pedido tal
-//   cual se hizo; una vez finalizado, separa lo que quedó disponible
-//   (tildado por la vendedora) de lo que no había, y el total a pagar
-//   sólo cuenta lo disponible.
-// - "Preparar Pedido": para la vendedora, pide su N° de vendedor/a
-//   (numero_zeus) y, si nadie más lo está preparando, permite tildar,
-//   sacar (✕) o agregar artículos, e "Finalizar armado" para guardar
-//   los cambios y habilitar de nuevo los botones de compartir.
+// El armado en sí (tildar/sacar/agregar artículos) ya NO vive acá: se
+// mudó al panel de administración ("🛠️ Armar Pedido" en Gestión
+// Pedidos), donde la vendedora ya está identificada por su propia
+// sesión en vez de tener que tipear un N° de vendedor/a acá.
 //
 // Reglas de código del proyecto (AGENTS.md): sin innerHTML (todo con
-// createElement/appendChild), sin alert/confirm/prompt (los cuadros de
-// confirmación son modales propios), preventDefault en todos los
-// submits/clicks que lo necesiten.
+// createElement/appendChild), sin alert/confirm/prompt, preventDefault
+// en todos los submits/clicks que lo necesiten.
 // =====================================================================
-
-const MAXIMO_PALABRAS_NOTA_PEDIDO = 30;
 
 let pedidoActual = null;
 let pedidoIdActual = null;
-let itemsActuales = [];
-let modoActual = null; // "ver" | "preparar"
-let numeroVendedorActual = null;
-let catalogoParaAgregarCache = null;
 
 document.addEventListener("DOMContentLoaded", async function () {
   pedidoIdActual = new URLSearchParams(window.location.search).get("id");
@@ -42,8 +35,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       return;
     }
     pedidoActual = pedido;
-    itemsActuales = clonarItems(pedido.items);
-    mostrarPedidoInicial(pedido);
+    mostrarPedido(pedido);
   } catch (error) {
     mostrarNoEncontrado();
     return;
@@ -51,12 +43,6 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   wireEventosEstaticos();
 });
-
-function clonarItems(items) {
-  return (items || []).map(function (item) {
-    return Object.assign({}, item);
-  });
-}
 
 function mostrarNoEncontrado() {
   document.getElementById("pedido-cargando").style.display = "none";
@@ -73,10 +59,10 @@ function formatearMoneda(numero) {
 }
 
 // ---------------------------------------------------------------------
-// Selector inicial: Ver Pedido / Preparar Pedido
+// Render del pedido (solo lectura)
 // ---------------------------------------------------------------------
 
-function mostrarPedidoInicial(pedido) {
+function mostrarPedido(pedido) {
   document.getElementById("pedido-cargando").style.display = "none";
   document.getElementById("pedido-contenido").style.display = "block";
 
@@ -85,73 +71,9 @@ function mostrarPedidoInicial(pedido) {
   document.getElementById("pedido-cliente-telefono").textContent = pedido.cliente_telefono;
   document.getElementById("pedido-vendedor").textContent = pedido.vendedor_nombre || "Sin asignar";
 
-  mostrarSelectorModo();
+  renderTablaPedido(pedido);
+  mostrarBotonesCompartir();
 }
-
-function mostrarSelectorModo() {
-  modoActual = null;
-  document.getElementById("pedido-selector-modo").style.display = "block";
-  document.getElementById("pedido-bloqueado-aviso").style.display = "none";
-  document.getElementById("btn-volver-modo").style.display = "none";
-  document.getElementById("pedido-tabla-wrap").style.display = "none";
-  document.getElementById("pedido-sin-stock-nota").style.display = "none";
-  document.getElementById("pedido-preparar-controles").style.display = "none";
-  ocultarBotonesCompartir();
-  document.getElementById("btn-imprimir-pedido").style.display = "none";
-  document.getElementById("pedido-guardando-aviso").style.display = "none";
-}
-
-// El botón "Compartir con la Vendedora por WhatsApp" sólo tiene
-// sentido en modo Ver (lo usa el cliente para mandarle el link a la
-// vendedora): en modo Preparar, quien mira la pantalla YA es la
-// vendedora, así que ese botón no debe aparecer ahí, sólo "Copiar
-// Enlace del pedido" (para reenviarle el resultado al cliente).
-function mostrarBotonesCompartir(mostrarTambienBotonVendedor) {
-  document.getElementById("pedido-acciones-compartir").style.display = "flex";
-  document.getElementById("btn-compartir-vendedor").style.display = mostrarTambienBotonVendedor ? "inline-flex" : "none";
-}
-
-function ocultarBotonesCompartir() {
-  document.getElementById("pedido-acciones-compartir").style.display = "none";
-}
-
-function entrarModoVer() {
-  modoActual = "ver";
-  document.getElementById("pedido-selector-modo").style.display = "none";
-  document.getElementById("pedido-bloqueado-aviso").style.display = "none";
-  document.getElementById("btn-volver-modo").style.display = "inline-flex";
-  document.getElementById("pedido-tabla-wrap").style.display = "block";
-  document.getElementById("pedido-preparar-controles").style.display = "none";
-  document.getElementById("btn-imprimir-pedido").style.display = "none";
-  mostrarBotonesCompartir(true);
-  renderTablaVer(pedidoActual);
-}
-
-function entrarModoPreparar() {
-  modoActual = "preparar";
-  document.getElementById("pedido-selector-modo").style.display = "none";
-  document.getElementById("pedido-bloqueado-aviso").style.display = "none";
-  document.getElementById("btn-volver-modo").style.display = "inline-flex";
-  document.getElementById("pedido-tabla-wrap").style.display = "block";
-  document.getElementById("pedido-preparar-controles").style.display = "flex";
-  document.getElementById("btn-imprimir-pedido").style.display = "inline-flex";
-  if (pedidoActual.armado_finalizado) {
-    mostrarBotonesCompartir(false);
-  } else {
-    ocultarBotonesCompartir();
-  }
-  renderTablaPreparar();
-}
-
-function mostrarAvisoBloqueado(nombreQueLoTiene) {
-  const aviso = document.getElementById("pedido-bloqueado-aviso");
-  aviso.textContent = "🔒 El pedido está siendo preparado por " + nombreQueLoTiene + ". Mientras tanto, sólo podés verlo.";
-  aviso.style.display = "block";
-}
-
-// ---------------------------------------------------------------------
-// Agrupado y celdas comunes (compartidas entre modo Ver y Preparar)
-// ---------------------------------------------------------------------
 
 function agruparItemsPorProducto(items) {
   const grupos = [];
@@ -180,8 +102,6 @@ function crearFilaGrupoProducto(nombreProducto) {
   return fila;
 }
 
-// Agrega las celdas SKU / Descripción (+ nota, si tiene) / Cantidad /
-// Precio a una fila ya creada, comunes tanto al modo Ver como Preparar.
 function agregarCeldasComunes(fila, item) {
   const celdaSku = document.createElement("td");
   celdaSku.textContent = item.sku;
@@ -241,11 +161,7 @@ function limpiarTbody(cuerpo) {
   }
 }
 
-// ---------------------------------------------------------------------
-// Modo "Ver Pedido" (solo lectura)
-// ---------------------------------------------------------------------
-
-function crearFilaVariantePedidoVer(item, marcado, finalizado) {
+function crearFilaVariantePedido(item, marcado, finalizado) {
   const fila = document.createElement("tr");
 
   const celdaCheck = document.createElement("td");
@@ -262,7 +178,7 @@ function crearFilaVariantePedidoVer(item, marcado, finalizado) {
   return fila;
 }
 
-function renderTablaVer(pedido) {
+function renderTablaPedido(pedido) {
   const cuerpo = document.getElementById("pedido-items-table-body");
   limpiarTbody(cuerpo);
 
@@ -277,7 +193,7 @@ function renderTablaVer(pedido) {
   agruparItemsPorProducto(pedido.items).forEach(function (grupo) {
     cuerpo.appendChild(crearFilaGrupoProducto(grupo.nombre));
     grupo.items.forEach(function (item) {
-      cuerpo.appendChild(crearFilaVariantePedidoVer(item, marcados[item.sku], finalizado));
+      cuerpo.appendChild(crearFilaVariantePedido(item, marcados[item.sku], finalizado));
     });
   });
 
@@ -288,352 +204,12 @@ function renderTablaVer(pedido) {
 }
 
 // ---------------------------------------------------------------------
-// Modo "Preparar Pedido" (editable: tildar, sacar, agregar)
-// ---------------------------------------------------------------------
-
-function crearFilaVariantePedidoPreparar(item, marcado) {
-  const fila = document.createElement("tr");
-  if (marcado) {
-    fila.className = "item-marcado";
-  }
-
-  const celdaCheck = document.createElement("td");
-  celdaCheck.className = "celda-check";
-
-  const controles = document.createElement("div");
-  controles.className = "celda-check-controles";
-
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.checked = Boolean(marcado);
-  checkbox.setAttribute("aria-label", "Marcar " + item.sku + " como en stock");
-  checkbox.addEventListener("change", function () {
-    manejarCambioCheck(item.sku, checkbox, fila);
-  });
-  controles.appendChild(checkbox);
-
-  const btnQuitar = document.createElement("button");
-  btnQuitar.type = "button";
-  btnQuitar.className = "btn-quitar-item";
-  btnQuitar.title = "Sacar del pedido";
-  btnQuitar.setAttribute("aria-label", "Sacar " + item.sku + " del pedido");
-  btnQuitar.textContent = "✕";
-  btnQuitar.addEventListener("click", function () {
-    quitarItemDelPedido(item.sku);
-  });
-  controles.appendChild(btnQuitar);
-
-  celdaCheck.appendChild(controles);
-  fila.appendChild(celdaCheck);
-
-  agregarCeldasComunes(fila, item);
-  return fila;
-}
-
-function renderTablaPreparar() {
-  const cuerpo = document.getElementById("pedido-items-table-body");
-  limpiarTbody(cuerpo);
-
-  const marcados = pedidoActual.items_marcados || {};
-
-  agruparItemsPorProducto(itemsActuales).forEach(function (grupo) {
-    cuerpo.appendChild(crearFilaGrupoProducto(grupo.nombre));
-    grupo.items.forEach(function (item) {
-      cuerpo.appendChild(crearFilaVariantePedidoPreparar(item, marcados[item.sku]));
-    });
-  });
-
-  const totales = calcularTotales(itemsActuales);
-  cuerpo.appendChild(crearFilaTotalPedido(totales.total, totales.cantidadArticulos));
-
-  document.getElementById("pedido-sin-stock-nota").style.display = "none";
-}
-
-function quitarItemDelPedido(sku) {
-  itemsActuales = itemsActuales.filter(function (item) {
-    return item.sku !== sku;
-  });
-  renderTablaPreparar();
-}
-
-// Guarda en Supabase que esta variante quedó controlada (o se
-// destildó), para que el checklist de armado se mantenga aunque se
-// cierre y reabra el link. Si falla el guardado (sin conexión, etc.),
-// se revierte el checkbox y se avisa sin usar alert().
-async function manejarCambioCheck(sku, checkbox, fila) {
-  const marcado = checkbox.checked;
-  fila.classList.toggle("item-marcado", marcado);
-  checkbox.disabled = true;
-
-  try {
-    await marcarItemPedido(pedidoIdActual, sku, marcado);
-    pedidoActual.items_marcados = pedidoActual.items_marcados || {};
-    pedidoActual.items_marcados[sku] = marcado;
-  } catch (error) {
-    checkbox.checked = !marcado;
-    fila.classList.toggle("item-marcado", !marcado);
-    mostrarErrorGuardadoCheck();
-  } finally {
-    checkbox.disabled = false;
-  }
-}
-
-// ---------------------------------------------------------------------
-// Modal: N° de vendedor/a para entrar a "Preparar Pedido"
-// ---------------------------------------------------------------------
-
-function abrirModalNumeroVendedor() {
-  document.getElementById("numero-vendedor-error").style.display = "none";
-  // Si ya se validó un número en esta misma visita, se precarga (por si
-  // volvió al selector sin querer) pero igual pide confirmar.
-  document.getElementById("input-numero-vendedor").value = numeroVendedorActual || "";
-  mostrarModalPedido(document.getElementById("modal-numero-vendedor"));
-  document.getElementById("input-numero-vendedor").focus();
-}
-
-async function manejarSubmitNumeroVendedor(evento) {
-  evento.preventDefault();
-
-  const numero = document.getElementById("input-numero-vendedor").value.trim();
-  const errorBox = document.getElementById("numero-vendedor-error");
-
-  if (!numero) {
-    errorBox.textContent = "Ingresá tu número de vendedor/a.";
-    errorBox.style.display = "block";
-    return;
-  }
-
-  try {
-    const resultado = await iniciarArmadoPedido(pedidoIdActual, numero);
-    if (resultado.ok) {
-      numeroVendedorActual = numero;
-      ocultarModalPedido(document.getElementById("modal-numero-vendedor"));
-      pedidoActual.preparado_por_id = resultado.vendedor_id;
-      pedidoActual.preparado_por_nombre = resultado.vendedor_nombre;
-      entrarModoPreparar();
-      return;
-    }
-
-    if (resultado.motivo === "bloqueado") {
-      ocultarModalPedido(document.getElementById("modal-numero-vendedor"));
-      entrarModoVer();
-      mostrarAvisoBloqueado(resultado.bloqueado_por);
-      return;
-    }
-
-    errorBox.textContent = "Número de vendedor/a inválido.";
-    errorBox.style.display = "block";
-  } catch (error) {
-    errorBox.textContent = "No se pudo validar el número. Probá de nuevo.";
-    errorBox.style.display = "block";
-  }
-}
-
-// ---------------------------------------------------------------------
-// Modal: agregar producto/variante que no estaba en el pedido
-// ---------------------------------------------------------------------
-
-async function abrirModalAgregarProducto() {
-  const errorBox = document.getElementById("agregar-producto-error");
-  errorBox.style.display = "none";
-
-  if (!catalogoParaAgregarCache) {
-    try {
-      catalogoParaAgregarCache = await obtenerCatalogo();
-    } catch (error) {
-      catalogoParaAgregarCache = [];
-      errorBox.textContent = "No se pudo cargar el catálogo. Probá de nuevo.";
-      errorBox.style.display = "block";
-    }
-  }
-
-  poblarSelectProductosAgregar();
-  document.getElementById("input-agregar-cantidad").value = "1";
-
-  const textareaNota = document.getElementById("textarea-agregar-nota");
-  textareaNota.value = "";
-  actualizarContadorNotaAgregar();
-
-  mostrarModalPedido(document.getElementById("modal-agregar-producto"));
-}
-
-function poblarSelectProductosAgregar() {
-  const select = document.getElementById("select-agregar-producto");
-  while (select.firstChild) {
-    select.removeChild(select.firstChild);
-  }
-
-  catalogoParaAgregarCache.forEach(function (producto) {
-    const opcion = document.createElement("option");
-    opcion.value = producto.id;
-    opcion.textContent = producto.nombre;
-    select.appendChild(opcion);
-  });
-
-  poblarSelectVariantesAgregar();
-}
-
-function poblarSelectVariantesAgregar() {
-  const selectProducto = document.getElementById("select-agregar-producto");
-  const selectVariante = document.getElementById("select-agregar-variante");
-  while (selectVariante.firstChild) {
-    selectVariante.removeChild(selectVariante.firstChild);
-  }
-
-  const producto = (catalogoParaAgregarCache || []).find(function (p) {
-    return p.id === selectProducto.value;
-  });
-  if (!producto) {
-    return;
-  }
-
-  producto.variantes.forEach(function (variante) {
-    const opcion = document.createElement("option");
-    opcion.value = variante.id;
-    opcion.textContent = variante.sku + " - " + variante.modelo + " (" + formatearMoneda(variante.precio_actual) + ")";
-    selectVariante.appendChild(opcion);
-  });
-}
-
-function contarPalabrasPedido(texto) {
-  const limpio = (texto || "").trim();
-  return limpio === "" ? 0 : limpio.split(/\s+/).length;
-}
-
-function limitarPalabrasPedido(textarea, maximo) {
-  const palabras = textarea.value
-    .trim()
-    .split(/\s+/)
-    .filter(function (p) {
-      return p !== "";
-    });
-  if (palabras.length > maximo) {
-    textarea.value = palabras.slice(0, maximo).join(" ");
-  }
-}
-
-function actualizarContadorNotaAgregar() {
-  const textarea = document.getElementById("textarea-agregar-nota");
-  limitarPalabrasPedido(textarea, MAXIMO_PALABRAS_NOTA_PEDIDO);
-  document.getElementById("agregar-nota-contador").textContent = contarPalabrasPedido(textarea.value) + "/" + MAXIMO_PALABRAS_NOTA_PEDIDO + " palabras";
-}
-
-function manejarClickConfirmarAgregar() {
-  const errorBox = document.getElementById("agregar-producto-error");
-  const selectProducto = document.getElementById("select-agregar-producto");
-  const selectVariante = document.getElementById("select-agregar-variante");
-  const cantidad = parseInt(document.getElementById("input-agregar-cantidad").value, 10);
-  const nota = document.getElementById("textarea-agregar-nota").value.trim();
-
-  const producto = (catalogoParaAgregarCache || []).find(function (p) {
-    return p.id === selectProducto.value;
-  });
-  const variante = producto
-    ? producto.variantes.find(function (v) {
-        return v.id === selectVariante.value;
-      })
-    : null;
-
-  if (!producto || !variante) {
-    errorBox.textContent = "Elegí una funda y una variante.";
-    errorBox.style.display = "block";
-    return;
-  }
-  if (!cantidad || cantidad < 1) {
-    errorBox.textContent = "La cantidad debe ser al menos 1.";
-    errorBox.style.display = "block";
-    return;
-  }
-  errorBox.style.display = "none";
-
-  agregarItemAlPedido(producto, variante, cantidad, nota);
-  ocultarModalPedido(document.getElementById("modal-agregar-producto"));
-}
-
-function agregarItemAlPedido(producto, variante, cantidad, nota) {
-  const existente = itemsActuales.find(function (item) {
-    return item.sku === variante.sku;
-  });
-
-  if (existente) {
-    existente.cantidad += cantidad;
-    if (nota) {
-      existente.nota = nota;
-    }
-  } else {
-    itemsActuales.push({
-      productoId: producto.id,
-      productoNombre: producto.nombre,
-      varianteId: variante.id,
-      sku: variante.sku,
-      modelo: variante.modelo,
-      precioUnitario: variante.precio_actual,
-      cantidad: cantidad,
-      nota: nota || "",
-    });
-  }
-
-  renderTablaPreparar();
-}
-
-// ---------------------------------------------------------------------
-// Finalizar armado
-// ---------------------------------------------------------------------
-
-function itemsEquivalentes(itemsA, itemsB) {
-  const normalizar = function (items) {
-    return (items || [])
-      .map(function (item) {
-        return item.sku + ":" + item.cantidad;
-      })
-      .sort()
-      .join("|");
-  };
-  return normalizar(itemsA) === normalizar(itemsB);
-}
-
-function abrirModalConfirmarFinalizar() {
-  const itemsOriginales = pedidoActual.items_original || pedidoActual.items;
-  const hayModificaciones = !itemsEquivalentes(itemsActuales, itemsOriginales);
-
-  document.getElementById("texto-confirmar-finalizar").textContent = hayModificaciones
-    ? "¿Deseás actualizar y finalizar el armado del pedido?"
-    : "¿Deseás finalizar el armado del pedido?";
-
-  mostrarModalPedido(document.getElementById("modal-confirmar-finalizar"));
-}
-
-async function manejarClickConfirmarFinalizar() {
-  ocultarModalPedido(document.getElementById("modal-confirmar-finalizar"));
-
-  const aviso = document.getElementById("pedido-guardando-aviso");
-  aviso.style.display = "block";
-
-  const totales = calcularTotales(itemsActuales);
-
-  try {
-    await actualizarItemsPedido(pedidoIdActual, itemsActuales, totales.total, totales.cantidadArticulos, numeroVendedorActual);
-    await finalizarArmadoPedido(pedidoIdActual, numeroVendedorActual);
-
-    pedidoActual.items = clonarItems(itemsActuales);
-    pedidoActual.total = totales.total;
-    pedidoActual.cantidad_articulos = totales.cantidadArticulos;
-    pedidoActual.armado_finalizado = true;
-    pedidoActual.preparado_por_id = null;
-    pedidoActual.preparado_por_nombre = null;
-
-    aviso.style.display = "none";
-    mostrarBotonesCompartir(false);
-    mostrarCopiadoConfirmacion();
-  } catch (error) {
-    aviso.style.display = "none";
-    mostrarErrorGuardadoCheck();
-  }
-}
-
-// ---------------------------------------------------------------------
 // Compartir / copiar el link del pedido
 // ---------------------------------------------------------------------
+
+function mostrarBotonesCompartir() {
+  document.getElementById("pedido-acciones-compartir").style.display = "flex";
+}
 
 function construirTextoPedidoCompartido() {
   const url = window.location.href;
@@ -688,8 +264,8 @@ async function compartirPedidoLink() {
 }
 
 // "Copiar Enlace del pedido": copia el mismo mensaje + link al
-// portapapeles en vez de abrir WhatsApp, para que la vendedora lo pegue
-// donde le resulte más cómodo (otro chat, un mail, etc.).
+// portapapeles en vez de abrir WhatsApp, para que se pegue donde
+// resulte más cómodo (otro chat, un mail, etc.).
 async function copiarEnlacePedido() {
   const texto = construirTextoPedidoCompartido();
 
@@ -703,12 +279,8 @@ async function copiarEnlacePedido() {
   } catch (error) {
     // Algunos navegadores rechazan el Clipboard API fuera de HTTPS o sin
     // permiso; se intenta el método clásico antes de darse por vencido.
-    try {
-      copiarTextoConFallback(texto);
-      mostrarCopiadoConfirmacion();
-    } catch (errorFallback) {
-      mostrarErrorGuardadoCheck();
-    }
+    copiarTextoConFallback(texto);
+    mostrarCopiadoConfirmacion();
   }
 }
 
@@ -738,81 +310,15 @@ function mostrarCopiadoConfirmacion() {
   }, 4000);
 }
 
-function mostrarErrorGuardadoCheck() {
-  const nota = document.getElementById("pedido-guardado-error");
-  if (!nota) {
-    return;
-  }
-  nota.style.display = "block";
-  window.clearTimeout(mostrarErrorGuardadoCheck.temporizador);
-  mostrarErrorGuardadoCheck.temporizador = window.setTimeout(function () {
-    nota.style.display = "none";
-  }, 4000);
-}
-
 // ---------------------------------------------------------------------
-// Modales genéricos y wiring de eventos estáticos
+// Wiring de eventos estáticos
 // ---------------------------------------------------------------------
-
-function mostrarModalPedido(modal) {
-  modal.classList.add("visible");
-}
-
-function ocultarModalPedido(modal) {
-  modal.classList.remove("visible");
-}
 
 function wireEventosEstaticos() {
-  document.getElementById("btn-modo-ver").addEventListener("click", function () {
-    entrarModoVer();
-  });
-
-  document.getElementById("btn-modo-preparar").addEventListener("click", function () {
-    abrirModalNumeroVendedor();
-  });
-
-  document.getElementById("btn-volver-modo").addEventListener("click", function () {
-    mostrarSelectorModo();
-  });
-
-  document.getElementById("btn-cerrar-modal-numero").addEventListener("click", function () {
-    ocultarModalPedido(document.getElementById("modal-numero-vendedor"));
-  });
-  document.getElementById("form-numero-vendedor").addEventListener("submit", manejarSubmitNumeroVendedor);
-
-  document.getElementById("btn-agregar-producto").addEventListener("click", function () {
-    abrirModalAgregarProducto();
-  });
-  document.getElementById("btn-cerrar-modal-agregar").addEventListener("click", function () {
-    ocultarModalPedido(document.getElementById("modal-agregar-producto"));
-  });
-  document.getElementById("select-agregar-producto").addEventListener("change", function () {
-    poblarSelectVariantesAgregar();
-  });
-  document.getElementById("textarea-agregar-nota").addEventListener("input", function () {
-    actualizarContadorNotaAgregar();
-  });
-  document.getElementById("btn-confirmar-agregar-producto").addEventListener("click", function () {
-    manejarClickConfirmarAgregar();
-  });
-
-  document.getElementById("btn-finalizar-armado").addEventListener("click", function () {
-    abrirModalConfirmarFinalizar();
-  });
-  document.getElementById("btn-cancelar-finalizar").addEventListener("click", function () {
-    ocultarModalPedido(document.getElementById("modal-confirmar-finalizar"));
-  });
-  document.getElementById("btn-confirmar-finalizar").addEventListener("click", function () {
-    manejarClickConfirmarFinalizar();
-  });
-
   document.getElementById("btn-compartir-vendedor").addEventListener("click", function () {
     compartirPedidoLink();
   });
   document.getElementById("btn-compartir-generico").addEventListener("click", function () {
     copiarEnlacePedido();
-  });
-  document.getElementById("btn-imprimir-pedido").addEventListener("click", function () {
-    window.print();
   });
 }

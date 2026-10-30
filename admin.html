@@ -531,6 +531,32 @@
     .btn-delete-var:disabled:hover {
       background: none;
     }
+    .armado-item-row {
+      align-items: flex-start;
+    }
+    .armado-item-row.marcado {
+      background: var(--color-primary-light);
+      border-color: var(--color-primary);
+    }
+    .armado-item-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      flex: 1;
+      min-width: 200px;
+    }
+    .armado-item-main input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      margin-top: 0.1rem;
+      flex: 0 0 auto;
+      accent-color: var(--color-primary);
+    }
+    .armado-item-nota {
+      font-size: 0.78rem;
+      color: var(--color-text-light);
+      font-style: italic;
+    }
     .status-toast {
       padding: 1rem;
       border-radius: var(--radius-md);
@@ -1093,6 +1119,66 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ARMAR PEDIDO (checklist de armado, antes vivía aparte en
+       pedido.html con N° de Zeus; ahora usa la sesión ya logueada de
+       la vendedora, sin pedirle identificarse dos veces). -->
+  <div id="modal-armar-pedido" class="modal-overlay">
+    <div class="modal-content" style="max-width: 560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🛠️ Armar Pedido</h3>
+        <button type="button" id="btn-cerrar-armar-pedido" class="btn-close">×</button>
+      </div>
+      <div class="modal-body-scroll">
+        <p id="armar-pedido-cliente" style="margin-top: 0; font-size: 0.9rem; color: var(--color-text-light);"></p>
+        <p style="font-size: 0.78rem; color: var(--color-text-light); margin-top: -0.5rem;">
+          Tildá cada artículo a medida que lo vas juntando. Se guarda solo, al toque.
+        </p>
+
+        <div id="armar-pedido-items"><!-- Filas generadas vía JS --></div>
+        <p id="armar-pedido-vacio" style="display: none; color: var(--color-text-light); font-size: 0.85rem; text-align: center; padding: 1rem 0;">
+          Sin artículos en este pedido.
+        </p>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0 0.5rem;">
+          <strong style="font-size: 0.9rem;">Total: <span id="armar-pedido-total">$0</span></strong>
+          <button type="button" id="btn-toggle-agregar-item" class="btn-secondary" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+            ➕ Agregar producto
+          </button>
+        </div>
+
+        <div id="armar-pedido-agregar-form" style="display: none; flex-direction: column; gap: 0.6rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-md); padding: 0.75rem; margin-bottom: 0.5rem;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="armar-select-producto">Producto</label>
+            <select id="armar-select-producto" class="form-input"></select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="armar-select-variante">Variante</label>
+            <select id="armar-select-variante" class="form-input"></select>
+          </div>
+          <div style="display: flex; gap: 0.6rem;">
+            <div class="form-group" style="margin-bottom: 0; flex: 0 0 110px;">
+              <label class="form-label" for="armar-input-cantidad">Cantidad</label>
+              <input type="number" id="armar-input-cantidad" class="form-input" min="1" value="1">
+            </div>
+            <div class="form-group" style="margin-bottom: 0; flex: 1;">
+              <label class="form-label" for="armar-input-nota">Detalle (opcional)</label>
+              <input type="text" id="armar-input-nota" class="form-input" placeholder="Color, género, etc.">
+            </div>
+          </div>
+          <p id="armar-agregar-error" style="display: none; font-size: 0.78rem; color: #991b1b; margin: 0;"></p>
+          <button type="button" id="btn-confirmar-agregar-item" class="btn-primary" style="width: auto; padding: 0.45rem 0.9rem; font-size: 0.85rem;">
+            Agregar al pedido
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer-sticky">
+        <button type="button" id="btn-finalizar-armado-propio" class="btn-primary" style="width: 100%; justify-content: center;">
+          ✅ Finalizar armado
+        </button>
+      </div>
     </div>
   </div>
 
