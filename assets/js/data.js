@@ -276,7 +276,7 @@ async function obtenerPedidos() {
   const { data, error } = await supabaseClient
     .from("pedidos")
     .select(
-      "id, cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at, estado, vendedor_id, tomado_en, preparado_en, preparado_por_id, preparado_por_nombre, armado_finalizado, armado_finalizado_por"
+      "id, cliente_nombre, cliente_telefono, items, total, cantidad_articulos, created_at, estado, vendedor_id, tomado_en, preparado_en, preparado_por_id, preparado_por_nombre, armado_finalizado, armado_finalizado_por, pagado, pagado_en, retirado, retirado_en"
     )
     .order("created_at", { ascending: false });
 
@@ -339,8 +339,20 @@ async function finalizarArmadoPropio(id, items, total, cantidadArticulos) {
   return data;
 }
 
-async function completarPedidoPropio(id) {
-  const { data, error } = await supabaseClient.rpc("completar_pedido_propio", { p_id: id });
+// "completar_pedido_propio" (click único: solo cambiaba el estado) ya
+// no se usa desde el panel; ver actualizarPagoRetiroPropio, que
+// reemplaza ese paso con pago y retiro asentados por separado.
+
+// Reemplaza al click único de completarPedidoPropio: pagado y
+// retirado son dos hechos independientes (ver
+// actualizar_pago_retiro_propio en supabase/schema.sql). Se manda el
+// valor final de los dos, no solo el que cambió.
+async function actualizarPagoRetiroPropio(id, pagado, retirado) {
+  const { data, error } = await supabaseClient.rpc("actualizar_pago_retiro_propio", {
+    p_id: id,
+    p_pagado: pagado,
+    p_retirado: retirado,
+  });
   if (error) {
     throw error;
   }

@@ -584,28 +584,63 @@ function renderFilaPedidoVendedora(pedido, celdaCliente, celdaTelefono, celdaEst
       abrirModalArmarPedido(pedido);
     });
     celdaAcciones.appendChild(btnArmar);
-  } else if (pedido.vendedor_id === miVendedorId && pedido.estado === "preparado") {
-    // Después de armado sigue pudiendo reabrirse (ej. si faltó algo),
-    // hasta que se marca pagado.
-    const btnRevisar = document.createElement("button");
-    btnRevisar.type = "button";
-    btnRevisar.className = "btn-secondary btn-accion-vendedora";
-    btnRevisar.style.width = "auto";
-    btnRevisar.textContent = "✏️ Revisar armado";
-    btnRevisar.addEventListener("click", function () {
-      abrirModalArmarPedido(pedido);
-    });
-    celdaAcciones.appendChild(btnRevisar);
+  } else if (pedido.vendedor_id === miVendedorId && (pedido.estado === "preparado" || pedido.estado === "completado")) {
+    // Pago y retiro quedan como dos hechos independientes que se
+    // pueden tildar en cualquier orden (el cliente puede pagar antes
+    // de retirar, o al revés): el pedido pasa solo a "✅ Completado"
+    // cuando los dos están en true (ver actualizar_pago_retiro_propio).
+    if (pedido.estado === "preparado") {
+      const btnRevisar = document.createElement("button");
+      btnRevisar.type = "button";
+      btnRevisar.className = "btn-secondary btn-accion-vendedora";
+      btnRevisar.style.width = "auto";
+      btnRevisar.textContent = "✏️ Revisar armado";
+      btnRevisar.addEventListener("click", function () {
+        abrirModalArmarPedido(pedido);
+      });
+      celdaAcciones.appendChild(btnRevisar);
+    }
 
-    const btnCompletar = document.createElement("button");
-    btnCompletar.type = "button";
-    btnCompletar.className = "btn-secondary btn-accion-vendedora";
-    btnCompletar.style.width = "auto";
-    btnCompletar.textContent = "💰 Marcar pagado";
-    btnCompletar.addEventListener("click", function () {
-      manejarCompletarPedido(pedido.id, btnCompletar);
+    const btnPagado = document.createElement("button");
+    btnPagado.type = "button";
+    btnPagado.className = (pedido.pagado ? "btn-primary" : "btn-secondary") + " btn-accion-vendedora";
+    btnPagado.style.width = "auto";
+    btnPagado.textContent = pedido.pagado ? "💵 Pagado ✓" : "💵 Marcar pagado";
+    btnPagado.addEventListener("click", function () {
+      manejarTogglePagoRetiro(pedido, !pedido.pagado, pedido.retirado, btnPagado);
     });
-    celdaAcciones.appendChild(btnCompletar);
+    celdaAcciones.appendChild(btnPagado);
+
+    const btnRetirado = document.createElement("button");
+    btnRetirado.type = "button";
+    btnRetirado.className = (pedido.retirado ? "btn-primary" : "btn-secondary") + " btn-accion-vendedora";
+    btnRetirado.style.width = "auto";
+    btnRetirado.textContent = pedido.retirado ? "📤 Retirado ✓" : "📤 Marcar retirado";
+    btnRetirado.addEventListener("click", function () {
+      manejarTogglePagoRetiro(pedido, pedido.pagado, !pedido.retirado, btnRetirado);
+    });
+    celdaAcciones.appendChild(btnRetirado);
+  }
+}
+
+// Tilda/destilda pagado o retirado (el llamador ya calculó el valor
+// final de los dos). Deshabilita el botón recién tocado para evitar
+// doble click mientras guarda.
+async function manejarTogglePagoRetiro(pedido, nuevoPagado, nuevoRetirado, boton) {
+  boton.disabled = true;
+  try {
+    const ok = await actualizarPagoRetiroPropio(pedido.id, nuevoPagado, nuevoRetirado);
+    if (!ok) {
+      mostrarToast("No se pudo actualizar. Probá de nuevo.", "error");
+      boton.disabled = false;
+      return;
+    }
+    await refrescarPedidos();
+    mostrarToast(nuevoPagado && nuevoRetirado ? "Pedido completado." : "Actualizado.", "success");
+  } catch (error) {
+    console.error(error);
+    mostrarToast("No se pudo actualizar: " + (error && error.message ? error.message : "error desconocido") + ".", "error");
+    boton.disabled = false;
   }
 }
 
@@ -651,6 +686,7 @@ function abrirModalArmarPedido(pedido) {
   document.getElementById("armar-pedido-cliente").textContent = pedido.cliente_nombre + " · " + pedido.cliente_telefono;
   document.getElementById("armar-pedido-agregar-form").style.display = "none";
   document.getElementById("armar-agregar-error").style.display = "none";
+  document.getElementById("armar-pedido-error-final").style.display = "none";
 
   renderArmadoItems(pedido.items_marcados || {});
   poblarSelectsAgregarArmado();
@@ -869,16 +905,25 @@ async function manejarFinalizarArmado() {
   if (!pedidoEnArmadoId) return;
 
   const boton = document.getElementById("btn-finalizar-armado-propio");
+  const cartelError = document.getElementById("armar-pedido-error-final");
   const textoOriginal = boton.textContent;
   boton.disabled = true;
   boton.textContent = "Guardando...";
+  cartelError.style.display = "none";
 
   const totales = totalesArmado(itemsEnArmado);
 
   try {
     const ok = await finalizarArmadoPropio(pedidoEnArmadoId, itemsEnArmado, totales.total, totales.cantidadArticulos);
     if (!ok) {
-      mostrarToast("No se pudo finalizar el armado (¿el pedido cambió de estado?).", "error");
+      // Cartel fijo (no un toast que desaparece solo) para que no
+      // quede la sensación de que el botón "no hizo nada": si esto
+      // pasa, lo más probable es que el schema.sql de Supabase esté
+      // desactualizado (la función finalizar_armado_propio es nueva).
+      cartelError.textContent =
+        "No se pudo finalizar: el servidor rechazó el guardado. Verificá que corriste la última versión de supabase/schema.sql en Supabase, y que este pedido sigue siendo tuyo.";
+      cartelError.style.display = "block";
+      console.error("finalizar_armado_propio devolvió false", { pedidoEnArmadoId: pedidoEnArmadoId });
       return;
     }
     ocultarModal(document.getElementById("modal-armar-pedido"));
@@ -886,26 +931,16 @@ async function manejarFinalizarArmado() {
     await refrescarPedidos();
     mostrarToast("Armado finalizado.", "success");
   } catch (error) {
-    mostrarToast("No se pudo finalizar el armado.", "error");
+    console.error(error);
+    cartelError.textContent = "No se pudo finalizar el armado: " + (error && error.message ? error.message : "error desconocido") + ".";
+    cartelError.style.display = "block";
   } finally {
     boton.disabled = false;
     boton.textContent = textoOriginal;
   }
 }
 
-async function manejarCompletarPedido(pedidoId, boton) {
-  boton.disabled = true;
-  try {
-    const ok = await completarPedidoPropio(pedidoId);
-    mostrarToast(ok ? "Pedido marcado como pagado." : "No se pudo marcar como pagado.", ok ? "success" : "error");
-    await refrescarPedidos();
-  } catch (error) {
-    mostrarToast("No se pudo marcar como pagado.", "error");
-    boton.disabled = false;
-  }
-}
-
-const ETIQUETAS_ESTADO_PEDIDO = { nuevo: "🆕 Nuevo", asignado: "🤝 Tomado", preparado: "📦 Preparado", completado: "💰 Pagado" };
+const ETIQUETAS_ESTADO_PEDIDO = { nuevo: "🆕 Nuevo", asignado: "🤝 Tomado", preparado: "📦 Preparado", completado: "✅ Completado" };
 
 // Horas transcurridas entre dos fechas contando solo tramos de día hábil
 // (lunes a viernes): el tiempo que cae sábado/domingo no suma. No se
@@ -961,21 +996,36 @@ function pintarEstadoPedido(pedido, celdaEstado) {
     celdaEstado.appendChild(badgeDemorado);
   }
 
-  // Estado de armado (pedido.html): si alguien lo está preparando
-  // ahora mismo, o si ya lo terminó de armar, para verlo sin tener que
-  // abrir el link.
-  if (pedido.preparado_por_id) {
-    celdaEstado.appendChild(document.createElement("br"));
-    const badgeLock = document.createElement("span");
-    badgeLock.className = "pedido-badge pedido-badge-lock";
-    badgeLock.textContent = "🔒 " + (pedido.preparado_por_nombre || "vendedor/a");
-    celdaEstado.appendChild(badgeLock);
-  } else if (pedido.armado_finalizado) {
+  // Una vez armado (ver finalizar_armado_propio), queda esta
+  // atribución fija de quién lo armó. "preparado_por_id" ya no es un
+  // bloqueo temporal (ese concepto era del viejo N° de Zeus en
+  // pedido.html, que ya no existe): ahora solo guarda quién lo armó.
+  if (pedido.armado_finalizado) {
     celdaEstado.appendChild(document.createElement("br"));
     const badgeArmado = document.createElement("span");
     badgeArmado.className = "pedido-badge pedido-badge-armado";
     badgeArmado.textContent = "✅ Armado" + (pedido.armado_finalizado_por ? " por " + pedido.armado_finalizado_por : "");
     celdaEstado.appendChild(badgeArmado);
+  }
+
+  // Pago y retiro son dos hechos independientes (ver
+  // actualizar_pago_retiro_propio en supabase/schema.sql): se avisan
+  // en cuanto alguno quede tildado, sin esperar a que se complete el
+  // otro, para no tener que abrir el pedido a revisar si ya cobraron
+  // o entregaron.
+  if (pedido.pagado) {
+    celdaEstado.appendChild(document.createElement("br"));
+    const badgePagado = document.createElement("span");
+    badgePagado.className = "pedido-badge pedido-badge-pagado";
+    badgePagado.textContent = "💵 Pagado";
+    celdaEstado.appendChild(badgePagado);
+  }
+  if (pedido.retirado) {
+    celdaEstado.appendChild(document.createElement("br"));
+    const badgeRetirado = document.createElement("span");
+    badgeRetirado.className = "pedido-badge pedido-badge-retirado";
+    badgeRetirado.textContent = "📤 Retirado";
+    celdaEstado.appendChild(badgeRetirado);
   }
 }
 
@@ -1061,52 +1111,35 @@ function renderFilaPedidoVista(pedido, celdaCliente, celdaTelefono, celdaEstado,
       cambiarEstadoPedido(pedido.id, "preparado");
     });
     celdaAcciones.appendChild(btnPreparar);
-  } else if (pedido.estado === "preparado") {
-    const btnCompletar = document.createElement("button");
-    btnCompletar.type = "button";
-    btnCompletar.className = "btn-secondary";
-    btnCompletar.style.width = "auto";
-    btnCompletar.style.padding = "0.35rem 0.75rem";
-    btnCompletar.style.fontSize = "0.8rem";
-    btnCompletar.textContent = "💰 Marcar pagado";
-    btnCompletar.addEventListener("click", function () {
-      cambiarEstadoPedido(pedido.id, "completado");
+  } else if (pedido.estado === "preparado" || pedido.estado === "completado") {
+    // Pago y retiro quedan como dos hechos independientes (igual que
+    // en la vista de la vendedora): el pedido pasa solo a "✅
+    // Completado" cuando los dos están en true. El admin puede
+    // destildar cualquiera para corregir un error, aunque ya esté
+    // completado.
+    const btnPagado = document.createElement("button");
+    btnPagado.type = "button";
+    btnPagado.className = pedido.pagado ? "btn-primary" : "btn-secondary";
+    btnPagado.style.width = "auto";
+    btnPagado.style.padding = "0.35rem 0.75rem";
+    btnPagado.style.fontSize = "0.8rem";
+    btnPagado.textContent = pedido.pagado ? "💵 Pagado ✓" : "💵 Marcar pagado";
+    btnPagado.addEventListener("click", function () {
+      manejarTogglePagoRetiroAdmin(pedido, !pedido.pagado, pedido.retirado, btnPagado);
     });
-    celdaAcciones.appendChild(btnCompletar);
-  } else if (pedido.estado === "completado") {
-    const btnReabrir = document.createElement("button");
-    btnReabrir.type = "button";
-    btnReabrir.className = "btn-secondary";
-    btnReabrir.style.width = "auto";
-    btnReabrir.style.padding = "0.35rem 0.75rem";
-    btnReabrir.style.fontSize = "0.8rem";
-    btnReabrir.textContent = "↩️ Reabrir";
-    btnReabrir.addEventListener("click", function () {
-      cambiarEstadoPedido(pedido.id, "preparado");
-    });
-    celdaAcciones.appendChild(btnReabrir);
-  }
+    celdaAcciones.appendChild(btnPagado);
 
-  if (pedido.preparado_por_id) {
-    const btnLiberar = document.createElement("button");
-    btnLiberar.type = "button";
-    btnLiberar.className = "btn-secondary";
-    btnLiberar.style.width = "auto";
-    btnLiberar.style.padding = "0.35rem 0.75rem";
-    btnLiberar.style.fontSize = "0.8rem";
-    btnLiberar.textContent = "🔓 Liberar";
-    btnLiberar.addEventListener("click", function () {
-      confirmarAccionDoble(btnLiberar, "¿Liberar?", async function () {
-        try {
-          await actualizarPedido(pedido.id, { preparado_por_id: null, preparado_por_nombre: null });
-          await refrescarPedidos();
-          mostrarToast("Bloqueo de armado liberado.", "success");
-        } catch (error) {
-          mostrarToast("No se pudo liberar el pedido.", "error");
-        }
-      });
+    const btnRetirado = document.createElement("button");
+    btnRetirado.type = "button";
+    btnRetirado.className = pedido.retirado ? "btn-primary" : "btn-secondary";
+    btnRetirado.style.width = "auto";
+    btnRetirado.style.padding = "0.35rem 0.75rem";
+    btnRetirado.style.fontSize = "0.8rem";
+    btnRetirado.textContent = pedido.retirado ? "📤 Retirado ✓" : "📤 Marcar retirado";
+    btnRetirado.addEventListener("click", function () {
+      manejarTogglePagoRetiroAdmin(pedido, pedido.pagado, !pedido.retirado, btnRetirado);
     });
-    celdaAcciones.appendChild(btnLiberar);
+    celdaAcciones.appendChild(btnRetirado);
   }
 
   const btnEditar = document.createElement("button");
@@ -1273,6 +1306,27 @@ async function cambiarEstadoPedido(pedidoId, nuevoEstado) {
     );
   } catch (error) {
     mostrarToast("No se pudo actualizar el estado del pedido.", "error");
+  }
+}
+
+// Vista del admin (a diferencia de manejarTogglePagoRetiro, de la
+// vendedora): escribe directo con actualizarPedido en vez de la RPC,
+// porque el admin ya tiene permiso de escritura total sobre "pedidos".
+async function manejarTogglePagoRetiroAdmin(pedido, nuevoPagado, nuevoRetirado, boton) {
+  boton.disabled = true;
+  try {
+    await actualizarPedido(pedido.id, {
+      pagado: nuevoPagado,
+      pagado_en: nuevoPagado ? pedido.pagado_en || new Date().toISOString() : null,
+      retirado: nuevoRetirado,
+      retirado_en: nuevoRetirado ? pedido.retirado_en || new Date().toISOString() : null,
+      estado: nuevoPagado && nuevoRetirado ? "completado" : "preparado",
+    });
+    await refrescarPedidos();
+    mostrarToast(nuevoPagado && nuevoRetirado ? "Pedido completado." : "Actualizado.", "success");
+  } catch (error) {
+    mostrarToast("No se pudo actualizar.", "error");
+    boton.disabled = false;
   }
 }
 

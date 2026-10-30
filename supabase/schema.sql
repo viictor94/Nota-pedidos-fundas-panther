@@ -261,6 +261,17 @@ alter table public.pedidos add column if not exists preparado_por_nombre text;
 alter table public.pedidos add column if not exists armado_finalizado boolean not null default false;
 alter table public.pedidos add column if not exists armado_finalizado_por text;
 
+-- Pago y retiro: dos hechos reales e independientes del negocio, que
+-- antes quedaban aplastados en un solo click de "Marcar pagado" (que
+-- en realidad solo cambiaba el estado, sin dejar asentado si el
+-- cliente de verdad pagó o si ya retiró la mercadería). El pedido pasa
+-- a "completado" recién cuando los dos quedan en true (ver
+-- actualizar_pago_retiro_propio más abajo).
+alter table public.pedidos add column if not exists pagado boolean not null default false;
+alter table public.pedidos add column if not exists pagado_en timestamptz;
+alter table public.pedidos add column if not exists retirado boolean not null default false;
+alter table public.pedidos add column if not exists retirado_en timestamptz;
+
 -- Marcas de tiempo para la alerta de "pedido demorado" del panel (ver
 -- pedidoEstaDemorado en admin.js): cuándo se le asignó vendedor/a (sea
 -- porque ella lo tomó, o porque el admin lo asignó a mano) y cuándo
@@ -939,6 +950,50 @@ $$;
 
 revoke all on function public.completar_pedido_propio(uuid) from public;
 grant execute on function public.completar_pedido_propio(uuid) to authenticated;
+
+-- Reemplaza al click único de completar_pedido_propio: deja asentar
+-- "pagado" y "retirado" como dos hechos independientes (el cliente
+-- puede pagar y retirar en momentos distintos), y recién pasa a
+-- "completado" cuando los dos quedan en true. Se puede llamar para
+-- tildar o destildar cualquiera de los dos por separado (el llamador
+-- manda el valor final de ambos campos, no solo el que cambió).
+create or replace function public.actualizar_pago_retiro_propio(
+  p_id uuid,
+  p_pagado boolean,
+  p_retirado boolean
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_vendedor_id  uuid;
+  v_actualizadas integer;
+begin
+  select vendedor_id into v_vendedor_id
+  from public.perfiles_admin
+  where id = auth.uid() and rol = 'vendedora' and activo;
+
+  if v_vendedor_id is null then
+    return false;
+  end if;
+
+  update public.pedidos
+  set pagado = p_pagado,
+      pagado_en = case when p_pagado then coalesce(pagado_en, now()) else null end,
+      retirado = p_retirado,
+      retirado_en = case when p_retirado then coalesce(retirado_en, now()) else null end,
+      estado = case when p_pagado and p_retirado then 'completado' else 'preparado' end
+  where id = p_id and vendedor_id = v_vendedor_id and estado in ('preparado', 'completado');
+
+  get diagnostics v_actualizadas = row_count;
+  return v_actualizadas > 0;
+end;
+$$;
+
+revoke all on function public.actualizar_pago_retiro_propio(uuid, boolean, boolean) from public;
+grant execute on function public.actualizar_pago_retiro_propio(uuid, boolean, boolean) to authenticated;
 
 -- Migra al único admin histórico (usuario fijo de antes de que
 -- existiera esta tabla) para que no pierda el acceso: si ya tiene una
