@@ -248,32 +248,77 @@ async function manejarClickCerrarSesion() {
 // Carga inicial de datos del panel
 // ---------------------------------------------------------------------
 
+// Carga cada sección por separado (Promise.allSettled, no Promise.all):
+// antes, si UNA sola fallaba (ej. obtenerPedidos pidiendo una columna
+// que todavía no existe porque falta correr el último supabase/
+// schema.sql en Supabase), el Promise.all entero se rechazaba y tiraba
+// abajo TODO el panel de un saque (stock, categorías, marcas,
+// vendedores, pedidos), con un solo toast genérico que no decía cuál
+// de todas había sido. Así, lo que sí carga bien queda andando, y el
+// aviso nombra puntualmente qué falló.
 async function cargarDatosAdmin() {
-  try {
-    const [config, catalogo, pedidos, vendedores, categorias, marcas] = await Promise.all([
-      obtenerConfig(),
-      obtenerCatalogoCompleto(),
-      obtenerPedidos(),
-      obtenerVendedores(),
-      obtenerCategoriasCompleto(),
-      obtenerMarcasCompleto(),
-    ]);
-    document.getElementById("config-whatsapp").value = config.whatsapp_vendedor || "";
-    productosAdmin = catalogo;
-    vendedoresAdmin = vendedores;
-    pedidosAdmin = pedidos;
-    categoriasAdmin = categorias;
-    marcasAdmin = marcas;
+  const secciones = [
+    { nombre: "Configuración", cargar: obtenerConfig },
+    { nombre: "Catálogo", cargar: obtenerCatalogoCompleto },
+    { nombre: "Pedidos", cargar: obtenerPedidos },
+    { nombre: "Vendedores", cargar: obtenerVendedores },
+    { nombre: "Categorías", cargar: obtenerCategoriasCompleto },
+    { nombre: "Marcas", cargar: obtenerMarcasCompleto },
+  ];
+
+  const resultados = await Promise.allSettled(
+    secciones.map(function (seccion) {
+      return seccion.cargar();
+    })
+  );
+
+  const [config, catalogo, pedidos, vendedores, categorias, marcas] = resultados;
+
+  if (config.status === "fulfilled") {
+    document.getElementById("config-whatsapp").value = config.value.whatsapp_vendedor || "";
+  }
+  if (catalogo.status === "fulfilled") {
+    productosAdmin = catalogo.value;
     renderListaProductos();
+  }
+  if (pedidos.status === "fulfilled") {
+    pedidosAdmin = pedidos.value;
     renderTablasPedidos(pedidosAdmin);
     renderReporteVendedores(pedidosAdmin);
+  }
+  if (vendedores.status === "fulfilled") {
+    vendedoresAdmin = vendedores.value;
     renderVendedoresAgrupados();
+  }
+  if (categorias.status === "fulfilled") {
+    categoriasAdmin = categorias.value;
     renderCategoriasLista();
     renderSelectsCategorias();
+  }
+  if (marcas.status === "fulfilled") {
+    marcasAdmin = marcas.value;
     renderMarcasLista();
     renderSelectsMarcas();
-  } catch (error) {
-    mostrarToast("No se pudieron cargar los datos del panel.", "error");
+  }
+
+  const fallidas = resultados
+    .map(function (resultado, indice) {
+      return { nombre: secciones[indice].nombre, resultado: resultado };
+    })
+    .filter(function (item) {
+      return item.resultado.status === "rejected";
+    });
+
+  if (fallidas.length > 0) {
+    fallidas.forEach(function (item) {
+      console.error("No se pudo cargar " + item.nombre + ":", item.resultado.reason);
+    });
+    mostrarToast(
+      "No se pudo cargar: " +
+        fallidas.map(function (item) { return item.nombre; }).join(", ") +
+        ". Mirá la consola del navegador (F12) para el detalle — probablemente falte correr la última versión de supabase/schema.sql en Supabase.",
+      "error"
+    );
   }
 }
 
