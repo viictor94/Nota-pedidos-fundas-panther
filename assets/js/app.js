@@ -26,6 +26,7 @@ let categoriasDisponibles = []; // Categorías activas, para los chips de filtro
 let categoriaActivaId = null; // null = chip "Todos"
 
 let marcaActivaId = null; // null = "Todas las marcas". Filtro independiente de categoría (ver obtenerCatalogoFiltrado).
+let marcasDisponibles = []; // Para poder mostrar el nombre de la marca activa en la barra de filtros.
 
 let terminoBusqueda = ""; // Texto del buscador (ya en minúsculas), filtra por nombre de producto o SKU de variante.
 let terminoBusquedaOriginal = ""; // Mismo texto tal cual lo tipeó el cliente, solo para mostrarlo en "Resultados para...".
@@ -59,6 +60,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     catalogoCompleto = ordenarDestacadosPrimero(catalogo);
     configuracionApp = config;
     categoriasDisponibles = categorias;
+    marcasDisponibles = marcas;
     actualizarTextoUltimaActualizacion(config.catalogo_actualizado_en);
     renderTarjetasCategoria();
     renderOpcionesMarca(marcas);
@@ -456,31 +458,67 @@ function configurarBuscador() {
   });
 
   document.getElementById("btn-clear-search").addEventListener("click", function () {
-    const input = document.getElementById("search-input");
-    input.value = "";
+    document.getElementById("search-input").value = "";
     terminoBusqueda = "";
     terminoBusquedaOriginal = "";
+
+    // "Limpiar todo" saca los 3 filtros a la vez (texto + categoría +
+    // marca), no solo el texto: antes solo limpiaba la búsqueda y
+    // dejaba la categoría/marca elegida sin ninguna forma rápida de
+    // sacarla también, lo que podía dejar el grid vacío sin que se
+    // entienda por qué.
+    categoriaActivaId = null;
+    marcaActivaId = null;
+    document.getElementById("filtro-marca").value = "";
+
     productosVisibles = PRODUCTOS_POR_PAGINA;
+    renderTarjetasCategoria();
     renderCatalogo();
     seguirCargandoSiSentinelaVisible();
-    input.focus();
+    document.getElementById("search-input").focus();
   });
 }
 
-// Mientras hay algo escrito en el buscador, se ocultan Categorías y
-// Promociones (no aportan nada durante una búsqueda de texto libre, y
-// antes tapaban el feedback: se podía escribir sin ver si el buscador
-// filtraba algo hasta bajar al listado) y se muestra un cartel con lo
-// que se está buscando y un botón para limpiarlo.
-function actualizarVisibilidadPorBusqueda() {
-  const buscando = terminoBusqueda.length > 0;
+// Arma el texto de la barra de "filtros activos" a partir de los 3
+// filtros independientes (búsqueda, categoría, marca), y la muestra si
+// hay alguno activo. Reemplaza al cartel que antes solo avisaba de la
+// búsqueda de texto: con categoría/marca combinadas, el cliente podía
+// quedar con el grid vacío sin ninguna pista de qué estaba filtrando.
+function actualizarBarraFiltros() {
+  const partes = [];
 
-  document.getElementById("categorias-section").style.display = buscando ? "none" : "";
+  if (terminoBusqueda) {
+    partes.push('Buscando: "' + terminoBusquedaOriginal + '"');
+  }
+  if (categoriaActivaId !== null) {
+    const categoria = categoriasDisponibles.find(function (c) {
+      return c.id === categoriaActivaId;
+    });
+    if (categoria) {
+      partes.push("Categoría: " + categoria.nombre);
+    }
+  }
+  if (marcaActivaId !== null) {
+    const marca = marcasDisponibles.find(function (m) {
+      return m.id === marcaActivaId;
+    });
+    if (marca) {
+      partes.push("Marca: " + marca.nombre);
+    }
+  }
+
+  const hayFiltros = partes.length > 0;
+
+  // Las tarjetas de Categorías solo se ocultan durante una búsqueda de
+  // texto libre (no aportan nada ahí); si el filtro activo es
+  // categoría/marca, las tarjetas se dejan visibles porque son,
+  // justamente, la forma de cambiar de categoría.
+  document.getElementById("categorias-section").style.display = terminoBusqueda ? "none" : "";
 
   const infoBox = document.getElementById("search-results-info");
-  infoBox.style.display = buscando ? "flex" : "none";
-  if (buscando) {
-    document.getElementById("search-results-text").textContent = 'Resultados para: "' + terminoBusquedaOriginal + '"';
+  infoBox.style.display = hayFiltros ? "flex" : "none";
+  if (hayFiltros) {
+    document.getElementById("search-results-text").textContent = partes.join(" · ");
   }
 }
 
@@ -509,7 +547,7 @@ function cambiarVista(vista) {
 }
 
 function renderCatalogo() {
-  actualizarVisibilidadPorBusqueda();
+  actualizarBarraFiltros();
   renderCarruseles();
 
   const catalogoFiltrado = obtenerCatalogoFiltrado();
@@ -797,10 +835,11 @@ function renderFilaDestacados(idWrap, idTrack, productos) {
     track.removeChild(track.firstChild);
   }
 
-  // También se oculta al filtrar por una categoría puntual (no
-  // "Todos"): mezclar promos de todas las categorías ahí no aporta y le
-  // resta lugar en pantalla a la búsqueda rápida del cliente.
-  if (productos.length === 0 || terminoBusqueda || categoriaActivaId !== null) {
+  // También se oculta al filtrar por una categoría o marca puntual (no
+  // "Todos"/"Todas las marcas"): mezclar promos de todo el catálogo ahí
+  // no aporta y le resta lugar en pantalla a la búsqueda rápida del
+  // cliente.
+  if (productos.length === 0 || terminoBusqueda || categoriaActivaId !== null || marcaActivaId !== null) {
     wrap.style.display = "none";
     return;
   }
